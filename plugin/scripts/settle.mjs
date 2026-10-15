@@ -42,7 +42,7 @@ export function removeSvgAnimations(win) {
 export const addToolStyle = (page, css) =>
   page.evaluate((c) => {
     const s = document.createElement('style')
-    s.setAttribute('data-dm-tool', '')
+    s.setAttribute('data-hd-tool', '')
     s.textContent = c
     document.head.appendChild(s)
   }, css)

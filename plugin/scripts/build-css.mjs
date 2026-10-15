@@ -1,4 +1,4 @@
-// usage: node build-css.mjs [--data <dir>]  (run in the project root)
+// usage: node build-css.mjs [--data <dir>] [--screens <dir>] [--out <file>]  (run in the project root)
 // Builds <dir>/dist/design.css with the style adapter (the app's Tailwind, or the plugin's own for css projects).
 import { execFile } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
@@ -22,18 +22,19 @@ export function screenClasses(screensDir) {
     .join('\n')
 }
 
-export async function buildCss(root, cfg, dataDir) {
+// screensDir: build for another folder of screen files (for example the screens of an older commit).
+export async function buildCss(root, cfg, dataDir, { screensDir = null } = {}) {
   const d = join(root, cfg.dir)
   mkdirSync(join(d, '.local'), { recursive: true })
-  writeFileSync(join(d, '.local', 'screens-classes.txt'), screenClasses(join(d, 'screens')))
+  writeFileSync(join(d, '.local', 'screens-classes.txt'), screenClasses(screensDir ?? join(d, 'screens')))
   return adapterFor(cfg).build(root, cfg, dataDir)
 }
 
-export async function writeCss(root, cfg, dataDir) {
-  const css = await buildCss(root, cfg, dataDir)
-  const out = join(root, cfg.dir, 'dist/design.css')
-  mkdirSync(dirname(out), { recursive: true })
-  writeFileSync(out, css)
+export async function writeCss(root, cfg, dataDir, { screensDir = null, out = null } = {}) {
+  const css = await buildCss(root, cfg, dataDir, { screensDir })
+  const file = out ?? join(root, cfg.dir, 'dist/design.css')
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, css)
   return Buffer.byteLength(css)
 }
 
@@ -48,9 +49,11 @@ export function buildCssInChild(root, dataDir) {
 if (isMain(import.meta.url)) {
   const root = projectRoot(process.cwd())
   const cfg = readConfig(root)
+  const arg = (name) => { const i = process.argv.indexOf(name); return i === -1 ? null : process.argv[i + 1] }
+  const out = arg('--out')
   try {
-    const n = await writeCss(root, cfg, parseDataArg(process.argv))
-    console.log(`${cfg.dir}/dist/design.css: ${n} bytes.`)
+    const n = await writeCss(root, cfg, parseDataArg(process.argv), { screensDir: arg('--screens'), out })
+    console.log(`${out ?? `${cfg.dir}/dist/design.css`}: ${n} bytes.`)
   } catch (e) {
     console.error(e.message)
     process.exit(1)

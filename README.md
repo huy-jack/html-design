@@ -143,12 +143,15 @@ After each edit Claude runs `/html-design check`. Undo is your own git.
 
 ## The viewer
 
-- State list with search and groups, **Previous / Next** (or ← →).
-- Width buttons and **Dark**.
+- **Home** (`http://127.0.0.1:<port>/`): every screen as a card with a live preview of its first state, its state count, open notes and last change. Search with `/`, sort by recent, name or state count.
+- **A screen**: the states in a side list by group (filter at the top, a dot for open notes, a link count). The design shows at its true width (1440 / 1024 / 375) and is scaled down to fit the window, never up, so the app's breakpoints see the real width. Above it: the size, the zoom, and the page it was copied from.
+- **Keys**: ↑ ↓ (or ← →) state, 1 2 3 width, D dark, P Pick.
 - **Pick**: click an element and type a note.
 - Linked buttons have a pointer. Click one to move to its state with its motion. Motion plays in Chrome 111+, Safari 18+ and Firefox 144+.
 - A red bar shows a CSS build error. The last good CSS stays in use.
 - A link to one state: `screens/<screen>.html#<state>@<width>`.
+- **Copy window**: shows the app tab it will copy (pick one when several are open) and its width. **Copy state**, **Copy in 5 s**, or **Copy at 3 widths** (resizes the app tab and copies each width). **Recent** lists this session's copies with a preview.
+- The viewer loads the Geist font from Google Fonts. Offline, it uses the system font.
 
 ## Config: `design-mode.json`
 
@@ -168,6 +171,23 @@ Setup writes it. You can edit it by hand.
 | `url` | asked | The page the app browser opens first |
 
 After you change `css` or update Tailwind, run `/html-design setup` again.
+
+## Scripting
+
+While a session runs, `design/.local/session.json` holds `port` (the viewer), `cdpPort` (the browser's automation port, on 127.0.0.1 only), `version` and `pluginRoot`. A script of your own can drive the session browser and ask for copies:
+
+1. Connect: `chromium.connectOverCDP('http://127.0.0.1:' + cdpPort)`, take `contexts()[0]`, open a page and bring it to the state you want.
+2. Read the page's target id: `Target.getTargetInfo` on a CDP session for that page.
+3. Copy: `POST http://127.0.0.1:<port>/__copy` with `{ "screen", "state", "label"?, "replace"?, "tab": "target:<id>" }`. 201 = saved, 409 = the state exists at this width, 400 = the tab is not open.
+4. Close your pages before you disconnect. Disconnecting leaves them open.
+
+Other hooks:
+
+- An element with the attribute `data-hd-tool` is left out of every copy. Put it on your own dev-only overlays.
+- Any `data-*` attribute you add on a state `<template>` is kept on every rewrite.
+- `node <pluginRoot>/scripts/build-css.mjs --screens <dir> --out <file>` builds CSS for another folder of screen files.
+
+While a session runs, any program on this computer, from any user account, can fully control the session browser through the automation port, including the sites you logged in to there. Web pages cannot reach it: Chromium refuses connections from other origins. Do not run a session on a shared computer.
 
 ## What lands in your project
 
@@ -215,7 +235,7 @@ git clone https://github.com/huy-jack/html-design
 cd html-design
 npm install
 npx playwright install chromium
-npm test                                # 232 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
+npm test                                # 250 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
 claude --plugin-dir ./plugin            # use the local copy in Claude Code
 claude plugin validate ./plugin
 ```

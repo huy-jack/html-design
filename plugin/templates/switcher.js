@@ -200,17 +200,55 @@
     return t
   }
 
+  // The viewer's look (shared tokens with the plugin's home page and Copy window). Dark chrome, so the design is the brightest thing on screen.
   var CSS =
-    '.sd-bar{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;background:#1f1f24;color:#f4f4f5;font:13px/1.4 system-ui,sans-serif}' +
-    '.sd-bar input,.sd-bar select,.sd-bar button{font:inherit;border:1px solid #52525b;border-radius:6px;background:#27272a;color:inherit;padding:4px 8px;min-height:32px}' +
-    '.sd-bar button[aria-pressed=true]{background:#754aa1;border-color:#754aa1}' +
-    '.sd-note{color:#a1a1aa}.sd-stage{display:flex;justify-content:center;padding:16px;background:#e4e4e7;min-height:calc(100vh - 48px)}' +
-    '.sd-frame{border:0;height:900px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);max-width:100%}' +
+    "@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap');" +
+    '.sd-app{--bg:#0c0c0d;--chrome:#121214;--raise:#18181b;--hover:#1f1f23;--line:#232327;--line2:#2e2e33;--ink:#ececee;--dim:#a1a1a8;--mute:#6b6b73;--accent:#4c8dff;--ok:#3ecf8e;--warn:#f5b84b;' +
+    'position:fixed;inset:0;display:grid;grid-template-columns:264px minmax(0,1fr);background:var(--bg);color:var(--ink);font:13px/1.45 Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;color-scheme:dark}' +
+    '.sd-app *{box-sizing:border-box}.sd-app svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}' +
+    '.sd-side{background:var(--chrome);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}' +
+    '.sd-scr{height:52px;display:flex;align-items:center;gap:8px;padding:0 12px 0 10px;border-bottom:1px solid var(--line);flex:none}' +
+    '.sd-scr a{display:grid;place-items:center;width:26px;height:26px;border-radius:6px;color:var(--mute)}.sd-scr a:hover{background:var(--hover);color:var(--ink)}' +
+    '.sd-scr b{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.sd-kbd{font:500 10.5px "Geist Mono",ui-monospace,monospace;color:var(--mute);border:1px solid var(--line2);border-radius:4px;padding:1px 4px;line-height:1.3}' +
+    '.sd-find{position:relative;margin:12px 12px 4px;flex:none}.sd-find svg{position:absolute;left:10px;top:9px;color:var(--mute)}' +
+    '.sd-find input{width:100%;height:32px;padding:0 10px 0 32px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;outline:none}' +
+    '.sd-find input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(76,141,255,.18)}.sd-find input::placeholder{color:var(--mute)}' +
+    '.sd-list{flex:1;overflow:auto;padding:0 0 12px}' +
+    '.sd-grp{padding:14px 16px 6px;color:var(--mute);font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}' +
+    '.sd-row{display:flex;align-items:center;gap:10px;width:calc(100% - 16px);margin:1px 8px;padding:0 8px;height:32px;border-radius:7px;color:var(--dim);background:none;border:0;font:inherit;text-align:left;cursor:pointer}' +
+    '.sd-row:hover{background:var(--hover);color:var(--ink)}.sd-row[aria-current=true]{background:var(--hover);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}' +
+    '.sd-row i{font:500 11px "Geist Mono",ui-monospace,monospace;font-style:normal;color:var(--mute);min-width:18px;text-align:right}' +
+    '.sd-row span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sd-row small{color:var(--mute);font-size:11px}' +
+    '.sd-ndot{width:6px;height:6px;border-radius:50%;background:var(--warn);flex:none}' +
+    '.sd-empty{padding:16px;color:var(--mute)}' +
+    '.sd-foot{border-top:1px solid var(--line);padding:11px 16px;display:flex;justify-content:space-between;gap:8px;color:var(--mute);font-size:12px;flex:none}' +
+    '.sd-main{display:flex;flex-direction:column;min-width:0;min-height:0}' +
+    '.sd-bar{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--chrome)}' +
+    '.sd-title{display:flex;flex-direction:column;line-height:1.25;min-width:0;flex:1}.sd-title b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.sd-title span{color:var(--mute);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.sd-bar button{height:30px;min-width:30px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 10px;border-radius:7px;color:var(--ink);border:1px solid var(--line2);background:var(--raise);font:inherit;cursor:pointer}' +
+    '.sd-bar button:hover{background:var(--hover)}.sd-bar button:disabled{opacity:.4;cursor:default}' +
+    '.sd-bar button[aria-pressed=true]{border-color:rgba(76,141,255,.5);background:rgba(76,141,255,.12);color:#cfe0ff}' +
+    '.sd-seg{display:inline-flex;padding:2px;background:var(--bg);border:1px solid var(--line);border-radius:8px;gap:2px}' +
+    '.sd-bar .sd-seg button{height:26px;border:0;background:none;color:var(--mute);font-size:12.5px;padding:0 9px}.sd-bar .sd-seg button:hover{color:var(--ink);background:none}' +
+    '.sd-bar .sd-seg button[aria-pressed=true]{background:var(--hover);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}' +
+    '.sd-vr{width:1px;height:20px;background:var(--line);flex:none}' +
+    '.sd-bar .sd-plain{border-color:transparent;background:none;color:var(--dim)}.sd-count{font:500 12px "Geist Mono",ui-monospace,monospace;color:var(--mute);min-width:34px;text-align:center}' +
+    '[data-sd=notes]{color:var(--mute);font-size:12.5px;white-space:nowrap}[data-sd=notes].sd-has{color:var(--warn)}.sd-hint{color:var(--warn);font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.sd-stage{flex:1;min-height:0;overflow:auto;background:#161618;background-image:radial-gradient(#26262b 1px,transparent 1px);background-size:16px 16px;padding:22px 32px 32px}' +
+    '.sd-cap{display:flex;justify-content:space-between;gap:16px;color:var(--mute);font-size:12px;height:18px;line-height:18px;overflow:hidden;margin:0 auto 10px}.sd-cap b{font:500 12px "Geist Mono",ui-monospace,monospace;color:var(--dim)}' +
+    '.sd-fit{margin:0 auto;position:relative;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 24px 60px -12px rgba(0,0,0,.6);background:#fff}' +
+    '.sd-frame{position:absolute;top:0;left:0;border:0;background:#fff;transform-origin:0 0}' +
+    '.sd-keys{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);color:var(--mute);font-size:11.5px;flex:none}' +
+    '.sd-keys>span{display:flex;gap:4px;align-items:center}' +
+    '.sd-notebox{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:20;width:min(640px,calc(100vw - 32px));display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;background:var(--chrome);color:var(--ink);border:1px solid var(--line2);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.5)}' +
+    '.sd-notebox>span{width:100%;color:var(--dim);font-size:12px}' +
+    '.sd-notebox input{flex:1 1 240px;height:34px;border:1px solid var(--line2);border-radius:8px;background:var(--bg);color:inherit;padding:0 11px;font:inherit;outline:none}.sd-notebox input:focus{border-color:var(--accent)}' +
+    '.sd-notebox button{height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--line2);background:var(--raise);color:var(--ink);font:inherit;cursor:pointer}.sd-notebox button[type=submit]{background:var(--ink);color:#0c0c0d;border-color:var(--ink);font-weight:500}' +
     'body{margin:0}' +
-    '.sd-bar button:disabled{opacity:.5;cursor:default}.sd-hint{color:#fbbf24}' +
-    '.sd-notebox{position:fixed;left:16px;right:16px;bottom:16px;z-index:20;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;background:#1f1f24;color:#f4f4f5;border-radius:8px;font:13px/1.4 system-ui,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.3)}' +
-    '.sd-notebox input{flex:1 1 240px;font:inherit;border:1px solid #52525b;border-radius:6px;background:#27272a;color:inherit;padding:4px 8px;min-height:32px}' +
-    '.sd-notebox button{font:inherit;border:1px solid #52525b;border-radius:6px;background:#27272a;color:inherit;padding:4px 8px;min-height:32px}'
+    '@media (max-width:900px){.sd-app{grid-template-columns:1fr}.sd-side{display:none}[data-sd=source]{display:none}.sd-stage{padding:16px}}'
+
   // Added to the frame's own page only: never part of a screen file or a match picture (render.mjs builds its own page).
   var PICK_CSS =
     '[data-sd-pick]{outline:2px solid #754aa1 !important;outline-offset:-2px !important;cursor:crosshair !important}' +
@@ -246,82 +284,212 @@
       if (key) b.setAttribute('data-sd', key)
       return b
     }
-    var bar = doc.createElement('div')
-    bar.className = 'sd-bar'
+    function el(tag, cls, html) {
+      var e = doc.createElement(tag)
+      if (cls) e.className = cls
+      if (html) e.innerHTML = html
+      return e
+    }
+    var ICON = {
+      back: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>',
+      next: '<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>',
+      search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+      moon: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>',
+      pick: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>',
+      desktop: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
+      tablet: '<svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M11 18h2"/></svg>',
+      phone: '<svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>',
+    }
+    var app = el('div', 'sd-app')
+    // Side: the screen, a filter, every state by group.
+    var side = el('aside', 'sd-side')
+    var head = el('div', 'sd-scr')
+    if (served) {
+      var home = el('a', '', ICON.back)
+      home.href = '/'
+      home.title = 'All screens'
+      head.appendChild(home)
+    }
+    var screenName = doc.documentElement.getAttribute('data-screen') || ''
+    var nameEl = el('b')
+    nameEl.textContent = screenName || 'Screen'
+    head.append(nameEl, el('span', 'sd-kbd', String(states.length)))
+    var find = el('label', 'sd-find', ICON.search)
     var search = doc.createElement('input')
     search.type = 'search'
-    search.placeholder = 'Search states'
+    search.placeholder = 'Filter states'
     search.setAttribute('aria-label', 'Search states')
-    var select = doc.createElement('select')
-    select.setAttribute('aria-label', 'State')
-    var prevBtn = button('Previous', 'prev')
-    var nextBtn = button('Next', 'next')
-    var widthBtns = WIDTHS.map(function (w) {
-      var b = button(String(w))
+    find.appendChild(search)
+    var list = el('nav', 'sd-list')
+    list.setAttribute('data-sd', 'list')
+    list.setAttribute('aria-label', 'States')
+    var foot = el('div', 'sd-foot')
+    var footNotes = el('span')
+    var footLinks = el('span')
+    foot.append(footNotes, footLinks)
+    // Main: the bar, then the stage with the design at its true width.
+    var main = el('main', 'sd-main')
+    var bar = el('div', 'sd-bar')
+    var title = el('div', 'sd-title')
+    var titleText = el('b')
+    var note = el('span', 'sd-note')
+    title.append(titleText, note)
+    var linkWarn = el('span', 'sd-hint')
+    linkWarn.setAttribute('data-sd', 'link-warn')
+    var seg = el('div', 'sd-seg')
+    var widthBtns = WIDTHS.map(function (w, i) {
+      var b = doc.createElement('button')
+      b.type = 'button'
+      b.innerHTML = (w >= 1200 ? ICON.desktop : w >= 600 ? ICON.tablet : ICON.phone) + w
+      b.title = 'Width ' + w + ' (' + (i + 1) + ')'
       b.dataset.width = String(w)
+      seg.appendChild(b)
       return b
     })
-    var themeBtn = button('Dark')
-    var note = doc.createElement('span')
-    note.className = 'sd-note'
-    var pickBtn = button('Pick', 'pick')
+    var themeBtn = doc.createElement('button')
+    themeBtn.type = 'button'
+    themeBtn.innerHTML = ICON.moon
+    themeBtn.title = 'Dark (D)'
+    themeBtn.setAttribute('aria-label', 'Dark')
+    var pickBtn = button('', 'pick')
+    pickBtn.innerHTML = ICON.pick + 'Pick'
+    pickBtn.title = 'Pick an element and write a note (P)'
     pickBtn.setAttribute('aria-pressed', String(picking))
-    var notesBadge = doc.createElement('span')
+    var notesBadge = el('span')
     notesBadge.setAttribute('data-sd', 'notes')
-    var linkWarn = doc.createElement('span')
-    linkWarn.className = 'sd-hint'
-    linkWarn.setAttribute('data-sd', 'link-warn')
+    var prevBtn = button('', 'prev')
+    prevBtn.innerHTML = ICON.back
+    prevBtn.className = 'sd-plain'
+    prevBtn.setAttribute('aria-label', 'Previous')
+    var count = el('span', 'sd-count')
+    var nextBtn = button('', 'next')
+    nextBtn.innerHTML = ICON.next
+    nextBtn.className = 'sd-plain'
+    nextBtn.setAttribute('aria-label', 'Next')
     var read = readLinks(doc)
     var links = read.links
     var handled = false
-    var screenName = doc.documentElement.getAttribute('data-screen') || ''
-    var parts = [search, select, prevBtn, nextBtn].concat(widthBtns, [themeBtn, note, linkWarn])
-    if (served) parts = parts.concat([pickBtn, notesBadge])
+    var parts = [title, linkWarn, seg, themeBtn]
+    if (served) parts = parts.concat([el('span', 'sd-vr'), pickBtn, notesBadge])
+    parts = parts.concat([el('span', 'sd-vr'), prevBtn, count, nextBtn])
     bar.append.apply(bar, parts)
-    var stage = doc.createElement('div')
-    stage.className = 'sd-stage'
+    var stage = el('div', 'sd-stage')
+    var cap = el('div', 'sd-cap')
+    var size = el('span')
+    size.setAttribute('data-sd', 'size')
+    var source = el('span')
+    source.setAttribute('data-sd', 'source')
+    cap.append(size, source)
+    var fitBox = el('div', 'sd-fit')
     var frame = doc.createElement('iframe')
     frame.className = 'sd-frame'
     frame.title = 'Design state'
-    stage.appendChild(frame)
-    doc.body.prepend(bar, stage)
+    fitBox.appendChild(frame)
+    stage.append(cap, fitBox)
+    main.append(bar, stage)
+    var keys = el('div', 'sd-keys', '<span><span class="sd-kbd">↑</span><span class="sd-kbd">↓</span>state</span><span><span class="sd-kbd">1</span><span class="sd-kbd">2</span><span class="sd-kbd">3</span>width</span><span><span class="sd-kbd">D</span>dark</span>' + (served ? '<span><span class="sd-kbd">P</span>pick</span>' : ''))
+    side.append(head, find, list, foot, keys)
+    app.append(side, main)
+    doc.body.prepend(app)
+    var notesBy = {}
+    var filterText = ''
 
     function fill(filter) {
-      select.textContent = ''
-      var groups = {}
-      states.forEach(function (s) {
-        var text = (s.attrs['data-label'] || s.id)
-        if (filter && text.toLowerCase().indexOf(filter) === -1 && s.id.indexOf(filter) === -1) return
+      filterText = filter
+      list.textContent = ''
+      var shown = 0
+      var lastGroup = null
+      states.forEach(function (s, i) {
+        var text = s.attrs['data-label'] || s.id
+        if (filter && text.toLowerCase().indexOf(filter) === -1 && s.id.toLowerCase().indexOf(filter) === -1) return
         var g = s.attrs['data-group'] || 'States'
-        if (!groups[g]) {
-          groups[g] = doc.createElement('optgroup')
-          groups[g].label = g
-          select.appendChild(groups[g])
+        if (g !== lastGroup) {
+          var gh = el('div', 'sd-grp')
+          gh.textContent = g
+          gh.setAttribute('data-sd-group', '')
+          list.appendChild(gh)
+          lastGroup = g
         }
-        var o = doc.createElement('option')
-        o.value = s.id
-        o.textContent = text
-        groups[g].appendChild(o)
+        var row = doc.createElement('button')
+        row.type = 'button'
+        row.className = 'sd-row'
+        row.setAttribute('data-sd-state', s.id)
+        var n = el('i')
+        n.textContent = String(i + 1)
+        var label = el('span')
+        label.textContent = text
+        row.title = s.id
+        row.append(n, label)
+        if (notesBy[s.id]) {
+          var dot = el('span', 'sd-ndot')
+          dot.setAttribute('data-sd-notedot', '')
+          dot.title = notesBy[s.id] + ' open note' + (notesBy[s.id] > 1 ? 's' : '')
+          row.appendChild(dot)
+        }
+        var nl = linksForState(links, s.id).length
+        if (nl) {
+          var small = el('small')
+          small.textContent = nl + (nl > 1 ? ' links' : ' link')
+          row.appendChild(small)
+        }
+        if (current && current.s.id === s.id) row.setAttribute('aria-current', 'true')
+        row.addEventListener('click', function () { go(s.id, current ? current.width : WIDTHS[0]) })
+        list.appendChild(row)
+        shown += 1
       })
+      if (!shown) list.appendChild(el('div', 'sd-empty', 'No state matches.'))
     }
     function refreshNotes() {
       root
-        .fetch('/__notes')
+        .fetch('/__notes?screen=' + encodeURIComponent(screenName))
         .then(function (r) { return r.json() })
         .then(
-          function (j) { notesBadge.textContent = j.error || j.open + ' open notes' },
+          function (j) {
+            notesBadge.textContent = j.error || j.open + ' open notes'
+            notesBadge.className = j.error || j.open ? 'sd-has' : ''
+            notesBy = j.byState || {}
+            var here = 0
+            for (var k in notesBy) here += notesBy[k]
+            footNotes.textContent = here ? here + ' open note' + (here > 1 ? 's' : '') + ' here' : ''
+            fill(filterText)
+          },
           function () { notesBadge.textContent = '' },
         )
+    }
+    // Scale the true-width frame down to fit the stage; never up. The frame keeps its real width, so the
+    // app's breakpoints see 1440, 1024 or 375, whatever the window size.
+    function fit() {
+      if (!current) return
+      var w = current.width
+      var avail = stage.clientWidth - 64
+      var k = avail > 0 ? Math.min(1, avail / w) : 1
+      var h = Math.max(900, Math.floor((stage.clientHeight - 64) / k))
+      frame.style.width = w + 'px'
+      frame.style.height = h + 'px'
+      frame.style.transform = k < 1 ? 'scale(' + k + ')' : ''
+      fitBox.style.width = Math.round(w * k) + 'px'
+      fitBox.style.height = Math.round(h * k) + 'px'
+      cap.style.width = Math.round(w * k) + 'px'
+      size.innerHTML = '<b>' + w + ' px</b>' + (k < 1 ? ' · shown at ' + Math.round(k * 100) + '%' : '')
     }
     // The bar for the state on screen. Step 2's same-page swap calls this too.
     function syncBar(s, width) {
       current = { s: s, width: width }
-      select.value = s.id
+      titleText.textContent = s.attrs['data-label'] || s.id
+      note.textContent = s.attrs['data-note'] || s.id
       widthBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(Number(b.dataset.width) === width)) })
       themeBtn.setAttribute('aria-pressed', String(theme === 'dark'))
-      note.textContent = s.attrs['data-note'] || ''
       prevBtn.disabled = stepState(ids, s.id, -1) === null
       nextBtn.disabled = stepState(ids, s.id, 1) === null
+      count.textContent = ids.indexOf(s.id) + 1 + '/' + ids.length
+      source.textContent = s.attrs['data-url'] ? 'Copied from ' + s.attrs['data-url'] : ''
+      Array.prototype.forEach.call(list.querySelectorAll('[data-sd-state]'), function (r) {
+        if (r.getAttribute('data-sd-state') === s.id) {
+          r.setAttribute('aria-current', 'true')
+          if (r.scrollIntoView) r.scrollIntoView({ block: 'nearest' })
+        } else r.removeAttribute('aria-current')
+      })
+      fit()
     }
     // saving: the note's POST, when the box closes on Save. A waiting reload goes after it, or it would cancel the save.
     function closeNoteBox(saving) {
@@ -448,18 +616,22 @@
     }
     function onKey(e) {
       if (e.key === 'Escape') return closeNoteBox()
-      if (isTypingTarget(e.target)) return
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-      var to = stepState(ids, current.s.id, e.key === 'ArrowLeft' ? -1 : 1)
-      if (!to) return
-      e.preventDefault()
-      go(to, current.width)
+      if (isTypingTarget(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        var to = stepState(ids, current.s.id, e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1)
+        if (!to) return
+        e.preventDefault()
+        return go(to, current.width)
+      }
+      var n = Number(e.key)
+      if (n >= 1 && n <= WIDTHS.length) return go(current.s.id, WIDTHS[n - 1])
+      if (e.key === 'd' || e.key === 'D') return toggleTheme()
+      if ((e.key === 'p' || e.key === 'P') && served) return togglePick()
     }
     function show() {
       var h = parseHash(root.location.hash)
       var s = states.filter(function (x) { return x.id === h.id })[0] || states[0]
       syncBar(s, h.width)
-      frame.style.width = h.width + 'px'
       frame.onload = function () {
         var d = frame.contentDocument
         restoreScroll(d)
@@ -476,19 +648,25 @@
     function go(id, width) {
       root.location.hash = encodeURIComponent(id) + '@' + width
     }
-    search.addEventListener('input', function () { fill(search.value.trim().toLowerCase()) })
-    select.addEventListener('change', function () { go(select.value, parseHash(root.location.hash).width) })
-    widthBtns.forEach(function (b) { b.addEventListener('click', function () { go(select.value, Number(b.dataset.width)) }) })
-    themeBtn.addEventListener('click', function () { theme = theme === 'dark' ? 'light' : 'dark'; saveView(); show() })
-    prevBtn.addEventListener('click', function () { var to = stepState(ids, current.s.id, -1); if (to) go(to, current.width) })
-    nextBtn.addEventListener('click', function () { var to = stepState(ids, current.s.id, 1); if (to) go(to, current.width) })
-    pickBtn.addEventListener('click', function () {
+    function toggleTheme() {
+      theme = theme === 'dark' ? 'light' : 'dark'
+      saveView()
+      show()
+    }
+    function togglePick() {
       picking = !picking
       saveView()
       pickBtn.setAttribute('aria-pressed', String(picking))
       if (!picking && hovered) hovered.removeAttribute('data-sd-pick')
       if (!picking) closeNoteBox()
-    })
+    }
+    search.addEventListener('input', function () { fill(search.value.trim().toLowerCase()) })
+    widthBtns.forEach(function (b) { b.addEventListener('click', function () { go(current.s.id, Number(b.dataset.width)) }) })
+    themeBtn.addEventListener('click', toggleTheme)
+    prevBtn.addEventListener('click', function () { var to = stepState(ids, current.s.id, -1); if (to) go(to, current.width) })
+    nextBtn.addEventListener('click', function () { var to = stepState(ids, current.s.id, 1); if (to) go(to, current.width) })
+    pickBtn.addEventListener('click', togglePick)
+    root.addEventListener('resize', fit)
     doc.addEventListener('keydown', onKey)
     root.addEventListener('hashchange', function () {
       if (handled) {
@@ -516,8 +694,10 @@
       refreshNotes()
     }
     linkWarn.textContent = read.error || ''
-    fill('')
+    var total = links.length
+    footLinks.textContent = total ? total + (total > 1 ? ' links' : ' link') : ''
     show()
+    fill('')
   }
 
   root.HtmlDesign = {

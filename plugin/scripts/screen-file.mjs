@@ -34,7 +34,8 @@ export function parseScreen(text) {
     screen: document.documentElement.getAttribute('data-screen') ?? '',
     states: [...document.querySelectorAll('body > template[id]:not([data-variant-of])')].map((t) => ({
       id: t.id,
-      attrs: Object.fromEntries(STATE_ATTRS.filter((a) => t.hasAttribute(a)).map((a) => [a, t.getAttribute(a)])),
+      // Project attributes (any other data-*) are kept too, so a rewrite never drops what a project added.
+      attrs: Object.fromEntries([...t.attributes].filter((a) => a.name.startsWith('data-') && a.name !== 'data-variant-of' && a.name !== 'data-widths').map((a) => [a.name, a.value])),
       html: t.innerHTML.trim(),
       variants: [...document.querySelectorAll('body > template[data-variant-of]')]
         .filter((v) => v.getAttribute('data-variant-of') === t.id)
@@ -69,7 +70,8 @@ export function canonicalHtml(html) {
 export function serializeScreen({ screen, states, links = [] }) {
   const body = states
     .map((s) => {
-      const attrs = [`id="${escAttr(s.id)}"`, ...STATE_ATTRS.filter((a) => s.attrs[a] != null && s.attrs[a] !== '').map((a) => `${a}="${escAttr(s.attrs[a])}"`)]
+      const extra = Object.keys(s.attrs).filter((a) => a.startsWith('data-') && !STATE_ATTRS.includes(a)).sort()
+      const attrs = [`id="${escAttr(s.id)}"`, ...[...STATE_ATTRS, ...extra].filter((a) => s.attrs[a] != null && s.attrs[a] !== '').map((a) => `${a}="${escAttr(s.attrs[a])}"`)]
       const variants = (s.variants ?? []).map((v) => `<template id="${escAttr(`${s.id}@${v.widths[0]}`)}" data-variant-of="${escAttr(s.id)}" data-widths="${v.widths.join(' ')}">\n${canonicalHtml(v.html)}\n</template>`)
       return [`<template ${attrs.join(' ')}>\n${canonicalHtml(s.html)}\n</template>`, ...variants].join('\n')
     })

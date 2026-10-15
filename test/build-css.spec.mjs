@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -40,6 +40,14 @@ describe('buildCss', () => {
     expect(css).toContain('#123456')
     expect(css).toMatch(/\.\\\[\\&_b\\\]\\:font-bold/)
   }, 60000)
+  it('tw4: builds only the screens, never classes from other project files', async () => {
+    const r = project('<p class="mt-29">x</p>')
+    mkdirSync(join(r, 'src'), { recursive: true })
+    writeFileSync(join(r, 'src/page.html'), '<p class="mt-31">app code, not a design</p>')
+    const css = await buildCss(r, readConfigOr(cfgBase), null)
+    expect(css).toContain('.mt-29')
+    expect(css).not.toContain('.mt-31')
+  }, 60000)
   it('css style: builds tw: classes with the plugin Tailwind from the data folder', async () => {
     const r = mkdtempSync(join(tmpdir(), 'bc-'))
     const cfg = readConfigOr({ dir: 'design', css: null })
@@ -69,4 +77,20 @@ describe('buildCss', () => {
     expect(readFileSync(out, 'utf8')).not.toContain('.italic')
     expect(readFileSync(out, 'utf8')).toContain('.underline')
   }, 90000)
+})
+
+describe('build-css CLI', () => {
+  it('builds from another screens folder into another file', () => {
+    const r = project('<p class="mt-17">x</p>')
+    writeConfig(r, cfgBase)
+    const dir = mkdtempSync(join(tmpdir(), 'scr-'))
+    writeFileSync(join(dir, 'x.html'), '<template id="a"><p class="mt-23">x</p></template>')
+    const out = join(dir, 'out.css')
+    const res = spawnSync(process.execPath, [join(process.cwd(), 'plugin/scripts/build-css.mjs'), '--screens', dir, '--out', out, '--data', makeData()], { cwd: r, encoding: 'utf8' })
+    expect(res.stderr).toBe('')
+    expect(res.status).toBe(0)
+    const css = readFileSync(out, 'utf8')
+    expect(css).toContain('.mt-23')
+    expect(css).not.toContain('.mt-17')
+  }, 30000)
 })

@@ -22,7 +22,16 @@ const nearest = (widths, w) => widths.reduce((best, x) => (Math.abs(x - w) < Mat
 export async function openBrowser({ root, cfg, dataDir = null, profileDir, onChord, headless = false, viewerOrigin = null }) {
   if (dataDir && existsSync(dataPaths(dataDir).browsers)) process.env.PLAYWRIGHT_BROWSERS_PATH = dataPaths(dataDir).browsers
   const { chromium } = loadDep(dataDir, 'playwright', root)
-  const context = await chromium.launchPersistentContext(profileDir, { headless, channel: cfg.browser === 'chrome' ? 'chrome' : undefined, viewport: null })
+  // The automation port lets a project's own scripts drive this browser and ask the session to copy a tab.
+  const context = await chromium.launchPersistentContext(profileDir, { headless, channel: cfg.browser === 'chrome' ? 'chrome' : undefined, viewport: null, args: ['--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0'] })
+  // Chromium writes the port it chose as the first line of DevToolsActivePort in the profile.
+  const portFile = join(profileDir, 'DevToolsActivePort')
+  for (let i = 0; i < 50 && !existsSync(portFile); i++) await new Promise((r) => setTimeout(r, 100))
+  const cdpPort = existsSync(portFile) ? Number(readFileSync(portFile, 'utf8').split('\n')[0]) : null
+  const targetIdOf = async (page) => {
+    const s = await context.newCDPSession(page)
+    try { return (await s.send('Target.getTargetInfo')).targetInfo.targetId } finally { await s.detach().catch(() => {}) }
+  }
   await context.exposeBinding('__hdCopy', ({ page }) => (onChord ? onChord(page) : undefined))
   await context.addInitScript({ content: CHORD_SCRIPT })
 
@@ -108,5 +117,5 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
     }
   }
 
-  return { context, appPages, copyFrom, resize, close: () => context.close() }
+  return { context, appPages, copyFrom, resize, cdpPort, targetIdOf, close: () => context.close() }
 }

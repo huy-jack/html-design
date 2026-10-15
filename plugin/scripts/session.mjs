@@ -111,6 +111,7 @@ export async function startSession({ root, cfg, data, headless = false, openPage
     appPages: () => (browser ? browser.appPages() : []),
     copyFrom: (...a) => browser.copyFrom(...a),
     resize: (...a) => browser.resize(...a),
+    targetIdOf: (...a) => browser.targetIdOf(...a),
   }
   // Names from the Copy window; the chord reuses them.
   let preset = null
@@ -144,7 +145,8 @@ export async function startSession({ root, cfg, data, headless = false, openPage
   }
   // Written only now: start and status report the session once the browser can take a copy.
   mkdirSync(localDir(root, cfg), { recursive: true })
-  writeFileSync(sessionFile(root, cfg), JSON.stringify({ pid: process.pid, port: view.port }) + '\n')
+  const { version: pluginVersion } = JSON.parse(readFileSync(join(pluginRoot, '.claude-plugin/plugin.json'), 'utf8'))
+  writeFileSync(sessionFile(root, cfg), JSON.stringify({ pid: process.pid, port: view.port, cdpPort: browser.cdpPort, version: pluginVersion, pluginRoot }) + '\n')
   return { view, browser, close }
 }
 
