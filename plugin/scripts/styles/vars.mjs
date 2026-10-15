@@ -70,6 +70,9 @@ export function varKind(name, value) {
   return 'other'
 }
 
+// Every --name that some declaration sets, in any rule or style attribute: "--x:" never appears in a use.
+export const declaredVars = (text) => new Set([...text.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]))
+
 export const parseVarList = (attr) => [...attr.matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)].map((m) => [m[1], m[2].trim()])
 
 // Git-tracked style files outside node_modules (and outside skipDir). Outside a git repo: none.

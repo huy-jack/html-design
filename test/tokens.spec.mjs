@@ -38,3 +38,15 @@ it('CLI lists css tokens that a copy wrote to page.css (Review Focus 4)', () => 
   expect(p.stdout).toContain('--brand')
   expect(p.stdout).toContain('1 from page.css')
 })
+
+it('knownVars also counts --x declared in any rule of app CSS or page.css, and in the screens (final review I4)', () => {
+  const r = mkdtempSync(join(tmpdir(), 'kv-'))
+  execFileSync('git', ['init', '-q'], { cwd: r })
+  writeFileSync(join(r, 'app.css'), '.sidebar { --sidebar-width: 16rem }')
+  execFileSync('git', ['add', 'app.css'], { cwd: r })
+  mkdirSync(join(r, 'design/screens'), { recursive: true })
+  writeFileSync(join(r, 'design/page.css'), 'body { --gap: 1px }')
+  writeFileSync(join(r, 'design/screens/a.html'), '<template id="s"><div style="--inline-w: 3rem"><p class="w-(--inline-w) [--set:1px]"></p></div></template>')
+  const known = knownVars(r, { ...DEFAULTS })
+  for (const n of ['--sidebar-width', '--gap', '--inline-w', '--set']) expect(known.has(n), n).toBe(true)
+})
