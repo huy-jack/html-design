@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { processCapture } from '../plugin/scripts/capture-core.mjs'
 import { DEFAULTS } from '../plugin/scripts/config.mjs'
+import { lintAdded, parseScreen } from '../plugin/scripts/screen-file.mjs'
 import { makeSkeleton } from '../plugin/scripts/setup.mjs'
 
 const cfg = { ...DEFAULTS, css: 'app.css', themeVars: ['--color-brand'] }
@@ -37,6 +38,13 @@ describe('processCapture', () => {
     const out = processCapture(base({ cfg: { ...DEFAULTS, style: 'css', css: null }, sheetTexts: [{ href: null, text: '/*! tailwindcss v4.1.18 */ :root{--color-brand:#1}' }] }))
     expect(out.status).toBe(201)
     expect(readFileSync(join(r, 'design/page.css'), 'utf8')).toContain('--color-brand')
+  })
+  it('stores the --vars from html and body on the state; the inline-style check ignores them', () => {
+    processCapture(base({ clean: { ...base().clean, htmlVars: '--accent:rgb(9, 9, 9)', bodyVars: '--gap:4px' } }))
+    const f = readFileSync(join(r, 'design/screens/checkout.html'), 'utf8')
+    expect(f).toContain('data-html-vars="--accent:rgb(9, 9, 9)"')
+    expect(f).toContain('data-body-vars="--gap:4px"')
+    expect(lintAdded(null, parseScreen(f).states[0]).filter((x) => x.rule === 'inline style')).toEqual([])
   })
   it('same id other width: width copy only when different', () => {
     processCapture(base())

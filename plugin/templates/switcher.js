@@ -36,10 +36,11 @@
     }, opts.theme)
     var attrs = ' class="' + esc(toks.join(' ')) + '"'
     Object.keys(extra).forEach(function (n) { attrs += ' ' + n + '="' + esc(extra[n]) + '"' })
+    if (a['data-html-vars']) attrs += ' style="' + esc(a['data-html-vars']) + '"'
     return (
       '<!doctype html><html lang="' + esc(a['data-html-lang'] || 'en') + '"' + attrs + '><head><meta charset="utf-8">' +
       '<base href="' + esc(opts.base) + '"><link rel="stylesheet" href="../dist/design.css"><link rel="stylesheet" href="../fonts.css"><link rel="stylesheet" href="../page.css"></head>' +
-      '<body class="' + esc(a['data-body-class'] || '') + '">' + pickHtml(state, opts.width) + '</body></html>'
+      '<body class="' + esc(a['data-body-class'] || '') + '"' + (a['data-body-vars'] ? ' style="' + esc(a['data-body-vars']) + '"' : '') + '>' + pickHtml(state, opts.width) + '</body></html>'
     )
   }
   function restoreScroll(doc) {
@@ -143,6 +144,8 @@
     applyTheme(doc.documentElement, opts.theme)
     doc.documentElement.lang = a['data-html-lang'] || 'en'
     doc.body.className = a['data-body-class'] || ''
+    if (a['data-html-vars']) doc.documentElement.setAttribute('style', a['data-html-vars']); else doc.documentElement.removeAttribute('style')
+    if (a['data-body-vars']) doc.body.setAttribute('style', a['data-body-vars']); else doc.body.removeAttribute('style')
     doc.body.innerHTML = pickHtml(state, opts.width)
   }
   var SLIDES = {

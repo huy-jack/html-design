@@ -53,6 +53,14 @@ export function cleanDocument(doc, { dark }) {
           },
     )
     .filter((s) => (s.href !== null && s.href !== undefined) || (s.text !== null && s.text.trim() !== ''))
+  // Constructable sheets (document.adoptedStyleSheets: Lit, some CSS-in-JS) have no element. They apply after
+  // the element sheets, so they go last. Sheets adopted inside a shadow root stay out (shadow DOM is not copied).
+  for (const sh of doc.adoptedStyleSheets || []) {
+    try {
+      const text = [...sh.cssRules].map((r) => r.cssText).join('\n')
+      if (text.trim()) sheets.push({ href: null, text })
+    } catch {}
+  }
   // 4. A video cannot play in a design file. With a poster, the video becomes an img of its poster, so the
   // copy shows what the user sees before play. Without a poster it stays as is (an empty frame) and is
   // counted in the warning below.
@@ -149,10 +157,15 @@ export function cleanDocument(doc, { dark }) {
   }
   // 7. Classes: keep all except the dark class. The html style attribute and dark attribute are never carried.
   const strip = (cls) => cls.split(/\s+/).filter((c) => c && !(dark && dark.kind === 'class' && c === dark.name))
+  // 7b. Custom properties a script set on <html> or <body> (style="--brand: ..."): kept per state. The rest of
+  // those style attributes (for example color-scheme) is never carried.
+  const vars = (el) => [...(el.getAttribute('style') || '').matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)].map((m) => `${m[1]}:${m[2].trim()}`).join(';')
   return {
     html: body.innerHTML.trim(),
     htmlClass: strip(doc.documentElement.className).join(' '),
     bodyClass: strip(body.className).join(' '),
+    htmlVars: vars(doc.documentElement),
+    bodyVars: vars(body),
     lang: doc.documentElement.lang || 'en',
     assets,
     remote,

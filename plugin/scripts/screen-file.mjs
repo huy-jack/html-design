@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { jsdom, prettier } from './runtime.mjs'
 
-export const STATE_ATTRS = ['data-flow', 'data-label', 'data-width', 'data-group', 'data-note', 'data-url', 'data-source', 'data-html-class', 'data-body-class', 'data-html-lang']
+export const STATE_ATTRS = ['data-flow', 'data-label', 'data-width', 'data-group', 'data-note', 'data-url', 'data-source', 'data-html-class', 'data-body-class', 'data-html-lang', 'data-html-vars', 'data-body-vars']
 // Measured in a real project: 73 states ≈ 19 MB. A design change diffs only its changed lines.
 export const SIZE_LIMIT = 25 * 1024 * 1024
 export const LINK_MOTIONS = ['none', 'fade', 'slide-left', 'slide-right', 'slide-up', 'morph']

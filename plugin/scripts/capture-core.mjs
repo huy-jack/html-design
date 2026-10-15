@@ -90,7 +90,7 @@ export function processCapture({ root, cfg, screen, state, label, width, replace
       if (css) appendUnique(join(d, 'page.css'), css)
     }
   }
-  const attrs = { ...(old?.attrs ?? {}), 'data-html-class': clean.htmlClass, 'data-body-class': clean.bodyClass, 'data-width': String(width), ...(label ? { 'data-label': label } : {}) }
+  const attrs = { ...(old?.attrs ?? {}), 'data-html-class': clean.htmlClass, 'data-body-class': clean.bodyClass, 'data-html-vars': clean.htmlVars ?? '', 'data-body-vars': clean.bodyVars ?? '', 'data-width': String(width), ...(label ? { 'data-label': label } : {}) }
   let states, kind
   if (!old || sameWidth) {
     ({ states } = mergeStates(existing.states, [{ id: state, attrs, html, variants: old?.variants ?? [] }], { replace: new Set([state]) })); kind = 'base'

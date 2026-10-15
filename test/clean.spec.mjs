@@ -7,6 +7,19 @@ const page = (body, head = '', htmlClass = 'font-x') =>
   new JSDOM(`<!doctype html><html lang="en" class="${htmlClass}"><head>${head}</head><body class="bg-background">${body}</body></html>`, { url: 'http://localhost:3000/p' }).window.document
 
 describe('cleanDocument', () => {
+  it('copies constructable sheets and the --vars on html and body, nothing else from their style', () => {
+    const { document } = new JSDOM('<!doctype html><html style="--accent: rgb(9, 9, 9); color-scheme: dark"><body style="--gap:4px; margin: 0"><p>x</p></body></html>').window
+    Object.defineProperty(document, 'adoptedStyleSheets', { value: [{ cssRules: [{ cssText: '.adopted { color: red; }' }] }, { cssRules: [] }] })
+    const out = cleanDocument(document, D)
+    expect(out.sheets.at(-1)).toEqual({ href: null, text: '.adopted { color: red; }' })
+    expect(out.sheets.filter((s) => s.text === '')).toEqual([])
+    expect(out.htmlVars).toBe('--accent:rgb(9, 9, 9)')
+    expect(out.bodyVars).toBe('--gap:4px')
+  })
+  it('no vars and no adopted sheets give empty strings', () => {
+    const out = cleanDocument(page('<p>x</p>'), D)
+    expect([out.htmlVars, out.bodyVars]).toEqual(['', ''])
+  })
   it('removes the theme marker and color-scheme from html (Review Focus 1)', () => {
     const { document } = new JSDOM('<html class="dark font-x" style="color-scheme: dark" data-theme="dark"><body><p>a</p></body></html>').window
     const c1 = cleanDocument(document, { dark: { kind: 'class', name: 'dark' } })

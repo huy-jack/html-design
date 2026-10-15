@@ -21,6 +21,11 @@ describe('switcher helpers', () => {
     expect(doc).toContain('<link rel="stylesheet" href="../dist/design.css"><link rel="stylesheet" href="../fonts.css"><link rel="stylesheet" href="../page.css">')
     expect(doc).toContain('<body class="bg-background"><main>Hi</main></body>')
   })
+  it('puts the copied --vars back on html and body', () => {
+    const doc = SD.buildStateDoc({ html: '<p>x</p>', attrs: { 'data-html-vars': '--accent:rgb(9, 9, 9)', 'data-body-vars': '--gap:4px' } }, { theme: 'light', base: 'x' })
+    expect(doc).toContain('<html lang="en" class="" style="--accent:rgb(9, 9, 9)">')
+    expect(doc).toContain('<body class="" style="--gap:4px"><p>x</p></body>')
+  })
   it('uses the width copy when the state has one for that width', () => {
     const state = { html: '<p>wide</p>', attrs: {}, variants: [{ widths: [1024, 375], html: '<p>narrow</p>' }] }
     expect(SD.buildStateDoc(state, { theme: 'light', base: 'x', width: 375 })).toContain('<p>narrow</p>')
@@ -125,6 +130,12 @@ describe('swap and motion', () => {
     expect(document.body.className).toBe('bg-background')
     expect(document.body.innerHTML).toBe('<p data-morph="caption">narrow</p>')
     expect(document.getElementById('keep')).not.toBeNull()
+  })
+  it('swapState sets the state --vars and clears old ones', () => {
+    const { document } = new JSDOM('<html style="--old:1"><body style="--b:1"><p>a</p></body></html>').window
+    SD.swapState(document, { html: '<p>b</p>', attrs: { 'data-html-vars': '--accent:red' } }, { theme: 'light' })
+    expect(document.documentElement.getAttribute('style')).toBe('--accent:red')
+    expect(document.body.hasAttribute('style')).toBe(false)
   })
   it('builds the same width choice as the full page builder', () => {
     expect(SD.pickHtml(state, 375)).toBe('<p data-morph="caption">narrow</p>')
