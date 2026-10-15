@@ -75,10 +75,13 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
     const sheetTexts = []
     for (const s of clean.sheets) {
       let text = s.text
-      if (text === null && s.href) {
+      // A <link> sheet: the served file, not the rule list the page parsed. The rule list drops comments,
+      // and the banner that marks the app's own Tailwind 3 output is a comment. The rule list stays as
+      // the fallback when the file cannot be downloaded.
+      if (s.href) {
         const buf = await fetchBuf(page, s.href)
-        if (!buf) { clean.warnings.push(`css file not downloaded: ${s.href}`); continue }
-        text = buf.toString('utf8')
+        if (buf) text = buf.toString('utf8')
+        else if (text === null) { clean.warnings.push(`css file not downloaded: ${s.href}`); continue }
       }
       if (text !== null) sheetTexts.push({ href: s.href, text })
     }
