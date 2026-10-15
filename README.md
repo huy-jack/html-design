@@ -143,12 +143,15 @@ After each edit Claude runs `/html-design check`. Undo is your own git.
 
 ## The viewer
 
-- State list with search and groups, **Previous / Next** (or ← →).
-- Width buttons and **Dark**.
+- **Home** (`http://127.0.0.1:<port>/`): every screen as a card with a live preview of its first state, its state count, open notes and last change. Search with `/`, sort by recent, name or state count.
+- **A screen**: the states in a side list by group (filter at the top, a dot for open notes, a link count). The design shows at its true width (1440 / 1024 / 375) and is scaled down to fit the window, never up, so the app's breakpoints see the real width. Above it: the size, the zoom, and the page it was copied from.
+- **Keys**: ↑ ↓ (or ← →) state, 1 2 3 width, D dark, P Pick.
 - **Pick**: click an element and type a note.
 - Linked buttons have a pointer. Click one to move to its state with its motion. Motion plays in Chrome 111+, Safari 18+ and Firefox 144+.
 - A red bar shows a CSS build error. The last good CSS stays in use.
 - A link to one state: `screens/<screen>.html#<state>@<width>`.
+- **Copy window**: shows the app tab it will copy (pick one when several are open) and its width. **Copy state**, **Copy in 5 s**, or **Copy at 3 widths** (resizes the app tab and copies each width). **Recent** lists this session's copies with a preview.
+- The viewer loads the Geist font from Google Fonts. Offline, it uses the system font.
 
 ## Config: `design-mode.json`
 
@@ -232,7 +235,7 @@ git clone https://github.com/huy-jack/html-design
 cd html-design
 npm install
 npx playwright install chromium
-npm test                                # 237 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
+npm test                                # 250 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
 claude --plugin-dir ./plugin            # use the local copy in Claude Code
 claude plugin validate ./plugin
 ```

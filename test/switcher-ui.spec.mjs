@@ -86,3 +86,62 @@ describe('viewer settings across a reload', () => {
     expect(JSON.parse(w.sessionStorage.getItem('sd-view'))).toEqual({ theme: 'light', picking: false })
   })
 })
+
+describe('redesigned viewer', () => {
+  const GROUPED =
+    '<!doctype html><html data-screen="x"><head></head><body>' +
+    '<template id="a" data-label="Alpha" data-group="One" data-url="/a"><p>a</p></template>' +
+    '<template id="b" data-label="Beta" data-group="One"><p>b</p></template>' +
+    '<template id="c" data-label="Gamma" data-group="Two"><p>c</p></template>' +
+    '</body></html>'
+  async function bootGrouped(url, fetchImpl) {
+    const dom = new JSDOM(GROUPED, { url, runScripts: 'outside-only', pretendToBeVisual: true })
+    const w = dom.window
+    w.fetch = fetchImpl ?? (() => Promise.reject(new Error('down')))
+    w.eval(SRC)
+    if (w.document.readyState !== 'complete') await new Promise((r) => w.addEventListener('load', r))
+    await tick(w)
+    await tick(w)
+    return w
+  }
+
+  it('lists the states by group in a side list; a click opens one at the same width', async () => {
+    const w = await bootGrouped('http://127.0.0.1:8900/screens/x.html#a@375')
+    const list = q(w, 'list')
+    expect([...list.querySelectorAll('[data-sd-group]')].map((g) => g.textContent)).toEqual(['One', 'Two'])
+    expect([...list.querySelectorAll('[data-sd-state]')].map((r) => r.getAttribute('data-sd-state'))).toEqual(['a', 'b', 'c'])
+    expect(list.querySelector('[data-sd-state="a"]').getAttribute('aria-current')).toBe('true')
+    list.querySelector('[data-sd-state="c"]').click()
+    await tick(w)
+    expect(w.location.hash).toBe('#c@375')
+  })
+  it('filters the list by the search box', async () => {
+    const w = await bootGrouped('file:///r/design/screens/x.html#a')
+    const s = w.document.querySelector('input[type="search"]')
+    s.value = 'gam'
+    s.dispatchEvent(new w.Event('input'))
+    expect([...q(w, 'list').querySelectorAll('[data-sd-state]')].map((r) => r.getAttribute('data-sd-state'))).toEqual(['c'])
+  })
+  it('keys: 1 2 3 pick a width, up and down step through states', async () => {
+    const w = await bootGrouped('http://127.0.0.1:8900/screens/x.html#a@1440')
+    const key = (k) => w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true }))
+    key('3'); await tick(w)
+    expect(w.location.hash).toBe('#a@375')
+    key('ArrowDown'); await tick(w)
+    expect(w.location.hash).toBe('#b@375')
+    key('ArrowUp'); await tick(w)
+    expect(w.location.hash).toBe('#a@375')
+  })
+  it('keeps the frame at the true width and names it, with the page the state was copied from', async () => {
+    const w = await bootGrouped('http://127.0.0.1:8900/screens/x.html#a@1024')
+    expect(w.document.querySelector('iframe.sd-frame').style.width).toBe('1024px')
+    expect(q(w, 'size').textContent).toMatch(/^1024 px/)
+    expect(q(w, 'source').textContent).toContain('/a')
+  })
+  it('marks states that have open notes', async () => {
+    const w = await bootGrouped('http://127.0.0.1:8900/screens/x.html#a@1440', (u) => (String(u).startsWith('/__notes') ? reply({ open: 2, byState: { b: 2 } }) : reply({})))
+    await tick(w)
+    expect(q(w, 'list').querySelector('[data-sd-state="b"] [data-sd-notedot]')).not.toBeNull()
+    expect(q(w, 'list').querySelector('[data-sd-state="a"] [data-sd-notedot]')).toBeNull()
+  })
+})

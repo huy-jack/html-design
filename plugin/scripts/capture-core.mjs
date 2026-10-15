@@ -61,7 +61,7 @@ export function processCapture({ root, cfg, screen, state, label, width, replace
   const same = !!old && !sameWidth && canonicalHtml(old.html).trim() === canonicalHtml(html).trim()
   const kept = old && !sameWidth ? withoutWidth(old.variants ?? [], width) : []
   if (same && kept.length === (old.variants ?? []).length && kept.every((v, i) => v.widths.length === old.variants[i].widths.length)) {
-    return { status: 201, kind: 'same-as-base', saved: file, images, warnings }
+    return { status: 201, kind: 'same-as-base', saved: file, images, warnings, width }
   }
   if (!same) writeSideFiles()
   function writeSideFiles() {
@@ -104,5 +104,5 @@ export function processCapture({ root, cfg, screen, state, label, width, replace
   const text = serializeScreen({ screen: existing.screen || screen, states, links: existing.links ?? [] })
   writeFileSync(file, text)
   if (Buffer.byteLength(text) > SIZE_LIMIT) warnings.push(`${slugScreen(screen)}.html is over 25 MB`)
-  return { status: 201, kind, saved: file, images, warnings }
+  return { status: 201, kind, saved: file, images, warnings, width }
 }

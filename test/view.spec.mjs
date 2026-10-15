@@ -10,7 +10,7 @@ import { readConfig, writeConfig } from '../plugin/scripts/config.mjs'
 import { readNotes } from '../plugin/scripts/notes.mjs'
 import { serializeScreen } from '../plugin/scripts/screen-file.mjs'
 import { makeSkeleton } from '../plugin/scripts/setup.mjs'
-import { copyWindow, createViewServer, homePage, validNote } from '../plugin/scripts/view.mjs'
+import { copyWindow, createViewServer, homePage, stateFromText, validNote } from '../plugin/scripts/view.mjs'
 import { startFixture } from './fixture/server.mjs'
 import { compareInPage, MATCH_PIXEL_RATIO } from './helpers/pixels.mjs'
 
@@ -125,6 +125,72 @@ describe('viewer pages', () => {
     const text = await res.text()
     expect(text).toContain('data-width="800"')
     expect(text).toContain('<option value="x">')
+  })
+})
+
+describe('redesigned viewer pages', () => {
+  it('home: a card per screen with a live preview of its first state, notes, update time, project and style', () => {
+    const html = homePage([{ file: 'a.html', states: 3, notes: 2, mtime: 1700000000000, first: 's1', labels: ['Alpha'] }], { project: 'proj', style: 'tw4' })
+    expect(html).toContain('href="/screens/a.html#s1"')
+    expect(html).toContain('src="/__state/a/s1"')
+    expect(html).toContain('3 states')
+    expect(html).toContain('2 notes')
+    expect(html).toContain('data-mtime="1700000000000"')
+    expect(html).toContain('proj')
+    expect(html).toContain('Tailwind 4')
+    expect(html).toContain('data-search="a alpha"')
+  })
+  it('home: an empty folder says how to copy the first screen', () => {
+    expect(homePage([], { project: 'p', style: 'css' })).toContain('No screens yet')
+  })
+  it('GET /__state/<screen>/<state> serves that one state as a page, without the rest of the file', async () => {
+    const { r, cfg } = project()
+    writeFileSync(join(r, 'design/screens/x.html'), screen(['a', 'b']))
+    const v = await viewer({ root: r, cfg })
+    const res = await fetch(`http://127.0.0.1:${v.port}/__state/x/b`)
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text).toContain('<p>b</p>')
+    expect(text).not.toContain('<p>a</p>')
+    expect(text).toContain('../dist/design.css')
+    expect(text).toContain('<base href="/screens/">')
+    expect((await fetch(`http://127.0.0.1:${v.port}/__state/x/zz`)).status).toBe(404)
+    expect((await fetch(`http://127.0.0.1:${v.port}/__state/..%2fsecret/a`)).status).toBe(404)
+  })
+  it('GET /__tabs lists the open app tabs; none without a browser', async () => {
+    const { r, cfg } = project()
+    expect(await (await fetch(`http://127.0.0.1:${(await viewer({ root: r, cfg })).port}/__tabs`)).json()).toEqual([])
+    const p = { title: async () => 'Home', url: () => 'http://localhost:3000/home', evaluate: async () => 1024 }
+    const v = await viewer({ root: r, cfg, browser: stubBrowser([p]) })
+    expect(await (await fetch(`http://127.0.0.1:${v.port}/__tabs`)).json()).toEqual([{ id: 't-1', title: 'Home', url: 'http://localhost:3000/home', width: 1024 }])
+  })
+  it('GET /__recent lists the last copies, newest first', async () => {
+    const { r, cfg } = project()
+    const b = stubBrowser([page('Home')], async (_p, x) => ({ status: 201, saved: 'x', images: 0, warnings: [], width: x.state === 'a' ? 1440 : 375 }))
+    const v = await viewer({ root: r, cfg, browser: b })
+    await post(v.port, '/__copy', { screen: 'Home Page', state: 'a' })
+    await post(v.port, '/__copy', { screen: 'Home Page', state: 'b' })
+    const got = await (await fetch(`http://127.0.0.1:${v.port}/__recent`)).json()
+    expect(got.map((x) => [x.screen, x.state, x.width])).toEqual([['home-page', 'b', 375], ['home-page', 'a', 1440]])
+    expect(typeof got[0].at).toBe('number')
+  })
+  it('stateFromText cuts one state out by id, with attribute values that hold ">" and quotes', () => {
+    const t = '<template id="a" data-note="a &gt; b" data-body-class="[&amp;>svg]:size-4"><p>a</p></template><template id="a@375" data-variant-of="a" data-widths="375"><p>small</p></template><template\n  id="b"\n>\n<p>b</p>\n</template>'
+    expect(stateFromText(t, 'a')).toEqual({ id: 'a', attrs: { id: 'a', 'data-note': 'a > b', 'data-body-class': '[&>svg]:size-4' }, html: '<p>a</p>', variants: [] })
+    expect(stateFromText(t, 'b').html).toBe('<p>b</p>')
+    expect(stateFromText(t, 'a@375')).toBeNull()
+  })
+  it('GET /__notes?screen= adds the open notes per state (width copies count for their state)', async () => {
+    const { r, cfg } = project()
+    const v = await viewer({ root: r, cfg })
+    for (const st of ['a', 'a@375', 'b']) await post(v.port, '/__notes', { ...note, state: st })
+    await post(v.port, '/__notes', { ...note, screen: 'other', state: 'a' })
+    expect(await (await fetch(`http://127.0.0.1:${v.port}/__notes?screen=x`)).json()).toEqual({ open: 4, byState: { a: 2, b: 1 } })
+    expect(await (await fetch(`http://127.0.0.1:${v.port}/__notes`)).json()).toEqual({ open: 4 })
+  })
+  it('Copy window: the app tab card, Copy state with its shortcut, Copy at 3 widths, Recent', () => {
+    const html = copyWindow({ screens: ['fixture'], widths: [1440, 1024, 375] })
+    for (const t of ['id="tab"', 'Copy state', 'Copy at 3 widths', 'Recent', '/__tabs', '/__recent']) expect(html).toContain(t)
   })
 })
 
@@ -288,7 +354,8 @@ describe('copy through the real browser', () => {
     await buildCssInChild(r, null)
     const shotApp = await app.screenshot({ clip: { x: 0, y: 0, width: 1440, height: 900 } })
     const view = await b.context.newPage()
-    await view.setViewportSize({ width: 1600, height: 1200 })
+    // Wide enough that the viewer shows the 1440 frame at 100% (it scales a frame down to fit, never up).
+    await view.setViewportSize({ width: 1800, height: 1000 })
     await view.goto(`http://127.0.0.1:${v.port}/screens/fixture.html#menu-open@1440`)
     const frame = view.locator('iframe.sd-frame')
     await frame.waitFor()
