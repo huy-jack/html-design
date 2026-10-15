@@ -15,6 +15,10 @@ Each file in `screens/` is one screen of the app. It holds every state of that s
 - **No badge:** the real app must look like this state. QA compares layout, spacing, colors, fonts and which elements show. QA does not compare exact text and images: the real app uses real data, the files use fake data.
 - `data-url` on a state is the app page it was copied from. `data-source` is the code line that renders it.
 
+## Classes in a css project
+
+When `design-mode.json` says `"style": "css"`, new styles are classes that start with `tw:`, for example `tw:p-6` or `tw:bg-(--brand)`. html-design builds them with its own Tailwind into `dist/design.css`. Your app's own classes still come from `page.css`.
+
 ## Links and motion
 
 - A linked button has a pointer cursor. Click it to move to the linked state with its motion. Click anything else to flash every linked button.
@@ -24,7 +28,7 @@ Each file in `screens/` is one screen of the app. It holds every state of that s
 ## Limits
 
 - `page.css` only grows.
-- `url()` images inside your own CSS file are not downloaded.
+- `url()` images inside your own Tailwind file are not downloaded.
 - Shadow DOM, iframes, canvas and video are not copied.
 - A local plugin test and a marketplace install use different data folders, so run setup again after installing from the marketplace.
 - Never edit `dist/` or `fonts.css` by hand.
