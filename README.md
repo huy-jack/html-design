@@ -24,7 +24,7 @@ An app without Tailwind v4 still works in **view-only mode**: copies render, but
 
 ## Install
 
-This repo is private. Claude Code clones it with your git credentials, so first check that `gh auth status` (or `git clone https://github.com/huy-jack/html-design`) works on that machine.
+The repo is public, so no login is needed to install it.
 
 In Claude Code:
 
