@@ -1,12 +1,12 @@
 // usage: node build-css.mjs [--data <dir>]  (run in the project root)
-// Builds <dir>/dist/design.css from <dir>/design.css with the project's own Tailwind.
+// Builds <dir>/dist/design.css with the style adapter (the app's Tailwind, or the plugin's own for css projects).
 import { execFile } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readConfig, projectRoot } from './config.mjs'
 import { isMain, parseDataArg } from './deps.mjs'
-import tw4 from './styles/tw4.mjs'
+import { adapterFor } from './styles/index.mjs'
 import { decodeEntities } from './styles/vars.mjs'
 
 
@@ -23,16 +23,14 @@ export function screenClasses(screensDir) {
 }
 
 export async function buildCss(root, cfg, dataDir) {
-  if (!cfg.css) return null
   const d = join(root, cfg.dir)
   mkdirSync(join(d, '.local'), { recursive: true })
   writeFileSync(join(d, '.local', 'screens-classes.txt'), screenClasses(join(d, 'screens')))
-  return tw4.build(root, cfg, dataDir)
+  return adapterFor(cfg).build(root, cfg, dataDir)
 }
 
 export async function writeCss(root, cfg, dataDir) {
   const css = await buildCss(root, cfg, dataDir)
-  if (css == null) return 0
   const out = join(root, cfg.dir, 'dist/design.css')
   mkdirSync(dirname(out), { recursive: true })
   writeFileSync(out, css)
@@ -46,9 +44,15 @@ export function buildCssInChild(root, dataDir) {
   return new Promise((res, rej) => execFile(process.execPath, args, { cwd: root }, (e, stdout, stderr) => (e ? rej(new Error(stderr || e.message)) : res(stdout))))
 }
 
+// Only the message goes to stderr, so the viewer's red bar and the check show the cause, not a stack line.
 if (isMain(import.meta.url)) {
   const root = projectRoot(process.cwd())
   const cfg = readConfig(root)
-  const n = await writeCss(root, cfg, parseDataArg(process.argv))
-  console.log(cfg.css ? `${cfg.dir}/dist/design.css: ${n} bytes.` : 'view-only: nothing to build')
+  try {
+    const n = await writeCss(root, cfg, parseDataArg(process.argv))
+    console.log(`${cfg.dir}/dist/design.css: ${n} bytes.`)
+  } catch (e) {
+    console.error(e.message)
+    process.exit(1)
+  }
 }

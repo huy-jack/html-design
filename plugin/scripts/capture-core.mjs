@@ -2,8 +2,9 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
-import { appendUnique, isProjectSheet, splitFontFaces } from './css-sort.mjs'
+import { appendUnique, splitFontFaces } from './css-sort.mjs'
 import { canonicalHtml, mergeStates, parseScreen, serializeScreen, slugScreen, SIZE_LIMIT } from './screen-file.mjs'
+import { adapterFor } from './styles/index.mjs'
 
 const MIME = { '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf' }
 const URL_RE = /url\(\s*(["']?)(.*?)\1\s*\)/g
@@ -76,7 +77,7 @@ export function processCapture({ root, cfg, screen, state, label, width, replace
     for (const s of sheetTexts) {
       const base = s.href ?? cfg.url ?? 'http://localhost/'
       const { faces, rest } = splitFontFaces(s.text)
-      if (cfg.css && isProjectSheet(s.text, cfg)) {
+      if (adapterFor(cfg).ownSheet(s.text, cfg)) {
         // Frameworks bundle font CSS into the Tailwind file (Next.js next/font): keep the fonts and the
         // rules for the html/body classes, drop the rest (the design build makes it again).
         saveFaces(faces, base)

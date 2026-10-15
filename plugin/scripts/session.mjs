@@ -9,6 +9,7 @@ import { openBrowser } from './browser.mjs'
 import { projectRoot, readConfig } from './config.mjs'
 import { dataPaths, isMain, parseDataArg } from './deps.mjs'
 import { setDataDir } from './runtime.mjs'
+import { adapterFor, styleName } from './styles/index.mjs'
 import { readNotes } from './notes.mjs'
 import { writeSwitcher } from './switcher-node.mjs'
 import { createViewServer } from './view.mjs'
@@ -89,7 +90,7 @@ async function status(root, cfg) {
   const screens = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.html')).length : 0
   let openNotes = 0
   try { openNotes = readNotes(root, cfg).filter((n) => !n.done).length } catch {}
-  console.log(JSON.stringify({ running: true, port: s.port, screens, openNotes }))
+  console.log(JSON.stringify({ running: true, port: s.port, screens, openNotes, style: styleName(cfg) }))
   return 0
 }
 
@@ -101,6 +102,8 @@ export async function startSession({ root, cfg, data, headless = false, openPage
   let version = null
   try { version = readFileSync(join(data, 'playwright-version.txt'), 'utf8').trim() } catch {}
   if (version !== PLAYWRIGHT_VERSION) throw Object.assign(new Error('Run /html-design setup again'), { exitCode: 6 })
+  const notReady = adapterFor(cfg).ready(data, cfg, root)
+  if (notReady) throw Object.assign(new Error(notReady), { exitCode: 6 })
 
   // The viewer starts first (the browser needs its origin); it reaches the browser through this late-bound handle.
   let browser = null

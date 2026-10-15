@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -6,6 +7,7 @@ import { buildCss, buildCssInChild, screenClasses } from '../plugin/scripts/buil
 import { DEFAULTS, writeConfig } from '../plugin/scripts/config.mjs'
 import { serializeScreen } from '../plugin/scripts/screen-file.mjs'
 import { makeSkeleton } from '../plugin/scripts/setup.mjs'
+import { makeData } from './helpers/data.mjs'
 
 const readConfigOr = (c) => ({ ...DEFAULTS, ...c })
 const cfgBase = { dir: 'design', css: 'app.css', dark: '.dark', widths: [1440] }
@@ -38,7 +40,24 @@ describe('buildCss', () => {
     expect(css).toContain('#123456')
     expect(css).toMatch(/\.\\\[\\&_b\\\]\\:font-bold/)
   }, 60000)
-  it('returns null in view-only mode', async () => expect(await buildCss('/tmp', { dir: 'design', css: null }, null)).toBe(null))
+  it('css style: builds tw: classes with the plugin Tailwind from the data folder', async () => {
+    const r = mkdtempSync(join(tmpdir(), 'bc-'))
+    const cfg = readConfigOr({ dir: 'design', css: null })
+    makeSkeleton(r, cfg, join(process.cwd(), 'plugin'))
+    writeFileSync(join(r, 'design/screens/a.html'), serializeScreen({ screen: 'a', states: [{ id: 's', attrs: {}, html: '<p class="tw:p-6 p-3">x</p>', variants: [] }] }))
+    const css = await buildCss(r, cfg, makeData())
+    expect(css).toContain('.tw\\:p-6')
+    expect(css).not.toMatch(/\.p-3\s*\{/)
+  }, 60000)
+  it('CLI prints only the message when the build fails (Review Focus 3)', () => {
+    const r = mkdtempSync(join(tmpdir(), 'bc-'))
+    writeConfig(r, { dir: 'design' })
+    makeSkeleton(r, readConfigOr({ dir: 'design' }), join(process.cwd(), 'plugin'))
+    const p = spawnSync(process.execPath, [join(process.cwd(), 'plugin/scripts/build-css.mjs'), '--data', makeData({ tailwind: false })], { cwd: r, encoding: 'utf8' })
+    expect(p.status).toBe(1)
+    expect(p.stderr).toContain('Missing Tailwind 4.1.18: run /html-design setup')
+    expect(p.stderr).not.toMatch(/^file:\/\//m)
+  })
   it('a fresh child build drops classes that left the screens', async () => {
     const r = project('<p class="italic">x</p>')
     writeConfig(r, cfgBase)

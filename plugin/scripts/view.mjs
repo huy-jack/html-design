@@ -3,7 +3,7 @@
 // then tells open pages to reload. Serves the Copy window and the copy endpoints. 127.0.0.1 only.
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync, watch } from 'node:fs'
 import { createServer } from 'node:http'
-import { dirname, extname, join, resolve, sep } from 'node:path'
+import { extname, join, resolve, sep } from 'node:path'
 import { parseArgs } from 'node:util'
 import { buildCssInChild } from './build-css.mjs'
 import { projectRoot, readConfig } from './config.mjs'
@@ -11,6 +11,7 @@ import { readNotes, writeNotes } from './notes.mjs'
 import { isMain } from './deps.mjs'
 import { setDataDir } from './runtime.mjs'
 import { parseScreen, slugScreen } from './screen-file.mjs'
+import { adapterFor } from './styles/index.mjs'
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif', '.avif': 'image/avif', '.woff': 'font/woff', '.woff2': 'font/woff2', '.md': 'text/plain; charset=utf-8' }
 const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
@@ -161,7 +162,7 @@ function listScreens(dir) {
 // browser: the session's app browser ({ appPages, copyFrom, resize }), or null when no browser is open.
 export async function createViewServer({ root, cfg, dataDir = null, port = 0, browser = null, watch: doWatch = true, build: buildOpt = true, onPreset = null }) {
   if (dataDir) setDataDir(dataDir)
-  const build = buildOpt && !!cfg.css
+  const build = buildOpt
   const base = resolve(root, cfg.dir)
   const screensDir = join(base, 'screens')
   const clients = new Set()
@@ -329,7 +330,7 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-store' }).end(readFileSync(real))
   })
 
-  // Screens and the Tailwind source need a CSS build; page.css and fonts.css need only a reload.
+  // Screens and the style sources need a CSS build; page.css and fonts.css need only a reload.
   const watchers = []
   if (doWatch) {
     let timer = null
@@ -348,13 +349,12 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     const add = (dir, opts, fn) => { if (existsSync(dir)) watchers.push(watch(dir, opts, fn)) }
     add(screensDir, { recursive: true }, () => later(true))
     add(base, {}, (_e, f) => { if (f === 'page.css' || f === 'fonts.css') later(false) })
-    if (cfg.css) {
-      const cssDir = dirname(join(root, cfg.css))
-      add(cssDir, { recursive: true }, (_e, f) => {
-        if (!f || !String(f).endsWith('.css')) return
-        const full = join(cssDir, String(f))
+    for (const w of adapterFor(cfg).watchDirs(root, cfg)) {
+      add(w.dir, { recursive: w.recursive }, (_e, f) => {
+        if (!f) return
+        const full = join(w.dir, String(f))
         if (full.startsWith(base + sep) || full.split(sep).includes('node_modules')) return
-        later(true)
+        if (w.match(full)) later(true)
       })
     }
   }

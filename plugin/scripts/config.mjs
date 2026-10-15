@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
 export const CONFIG_FILE = 'design-mode.json'
-export const DEFAULTS = { dir: 'design', css: null, themeVars: [], tailwindVersion: null, dark: '.dark', widths: [1440, 1024, 375], browser: 'chromium', url: null }
+export const DEFAULTS = { style: null, dir: 'design', css: null, twConfig: null, themeVars: [], tailwindVersion: null, dark: '.dark', widths: [1440, 1024, 375], browser: 'chromium', url: null }
 
 export function projectRoot(cwd = process.cwd()) {
   try { return execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() } catch { return cwd }

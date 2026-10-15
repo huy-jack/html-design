@@ -4,10 +4,11 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { processCapture } from './capture-core.mjs'
 import { darkMarker } from './config.mjs'
-import { cssUrls, isProjectSheet, splitFontFaces } from './css-sort.mjs'
+import { cssUrls, splitFontFaces } from './css-sort.mjs'
 import { dataPaths, loadDep } from './deps.mjs'
 import { parseScreen, slugScreen } from './screen-file.mjs'
 import { freezePage, settlePage } from './settle.mjs'
+import { adapterFor } from './styles/index.mjs'
 
 const CLEAN_SRC = readFileSync(join(import.meta.dirname, 'clean.mjs'), 'utf8').replace(/^export\s+/m, '')
 
@@ -84,7 +85,7 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
     const urls = new Set(clean.assets.map((a) => a.url))
     for (const s of sheetTexts) {
       // The project's own sheet is rebuilt, but the fonts bundled in it are kept: fetch only those.
-      const source = cfg.css && isProjectSheet(s.text, cfg) ? splitFontFaces(s.text).faces.join('\n') : s.text
+      const source = adapterFor(cfg).ownSheet(s.text, cfg) ? splitFontFaces(s.text).faces.join('\n') : s.text
       for (const u of cssUrls(source, s.href ?? pageUrl)) urls.add(u)
     }
     const files = new Map()

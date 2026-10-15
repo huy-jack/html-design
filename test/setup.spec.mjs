@@ -75,6 +75,15 @@ describe('CLI exits before any npm call', () => {
     expect(run(r)).toEqual({ status: 6, calls: '' })
   })
 
+  it('exit 7 on Tailwind 3 older than 3.3, 0 npm calls', () => {
+    const r = repo(); put(r, 'tailwind.config.js', 'module.exports = {}'); put(r, 'a.css', '@tailwind base;')
+    put(r, 'node_modules/tailwindcss/package.json', '{"version":"3.2.7"}')
+    execFileSync('git', ['add', 'tailwind.config.js', 'a.css'], { cwd: r })
+    expect(run(r)).toEqual({ status: 7, calls: '' })
+  })
+  it('exit 2 on a bad --style, 0 npm calls', () => {
+    expect(run(repo(), ['--style', 'sass'])).toEqual({ status: 2, calls: '' })
+  })
 })
 
 describe('findPackage', () => {
@@ -89,13 +98,13 @@ describe('findPackage', () => {
   })
 })
 
-it('view-only CLI: no Tailwind file gives css null, a warning on stderr, exit 0', () => {
+it('css CLI: no Tailwind gives style css, 0 tokens warns, no view-only text (Review Focus 4)', () => {
   const r = repo(); put(r, 'b.css', 'body{}'); execFileSync('git', ['add', '.'], { cwd: r })
   const p = spawnSync('node', [join(process.cwd(), 'plugin/scripts/setup.mjs'), '--data', mkdtempSync(join(tmpdir(), 'data-')), '--skip-install'], { cwd: r, encoding: 'utf8' })
   expect(p.status).toBe(0)
-  const out = JSON.parse(p.stdout.trim())
-  expect(out.css).toBe(null)
-  expect(out.viewOnly).toBe(true)
-  expect(p.stderr).toMatch(/View-only mode/)
-  expect(existsSync(join(r, 'design/design.css'))).toBe(true)
+  expect(JSON.parse(p.stdout.trim().split('\n').pop())).toEqual({ style: 'css', css: null, twConfig: null, dark: '.dark', tokens: 0, dir: 'design' })
+  expect(p.stderr).toMatch(/No theme tokens or CSS variables found yet/)
+  expect(p.stderr).not.toMatch(/View-only/)
+  expect(readFileSync(join(r, 'design/design.css'), 'utf8')).toMatch(/not used/)
+  expect(JSON.parse(readFileSync(join(r, 'design-mode.json'), 'utf8')).style).toBe('css')
 })

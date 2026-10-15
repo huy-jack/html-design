@@ -8,6 +8,7 @@ import { makeSkeleton } from '../plugin/scripts/setup.mjs'
 import { isOurSession, psCommand, startSession } from '../plugin/scripts/session.mjs'
 import { createServer } from 'node:http'
 import { startFixture } from './fixture/server.mjs'
+import { makeData } from './helpers/data.mjs'
 
 const SESSION = join(import.meta.dirname, '..', 'plugin/scripts/session.mjs')
 function project() {
@@ -17,13 +18,7 @@ function project() {
   makeSkeleton(r, readConfig(r))
   return r
 }
-function data(version = '1.56.1\n') {
-  const d = mkdtempSync(join(tmpdir(), 'sdata-'))
-  mkdirSync(join(d, 'node_modules'))
-  symlinkSync(join(import.meta.dirname, '..', 'node_modules', 'playwright'), join(d, 'node_modules', 'playwright'))
-  if (version !== null) writeFileSync(join(d, 'playwright-version.txt'), version)
-  return d
-}
+const data = (version = '1.56.1\n') => makeData({ version })
 const ses = (r, d, ...a) => spawnSync(process.execPath, [SESSION, ...a, '--data', d], { cwd: r, encoding: 'utf8' })
 const portOpen = (port) => fetch(`http://127.0.0.1:${port}/`).then(() => true, () => false)
 
@@ -42,7 +37,7 @@ describe('session', () => {
     expect(ses(r, d, 'start', '--headless').stdout).toContain(`127.0.0.1:${port}/`)
     const s = ses(r, d, 'status')
     expect(s.stdout).toContain('running')
-    expect(JSON.parse(s.stdout)).toEqual({ running: true, port, screens: 0, openNotes: 0 })
+    expect(JSON.parse(s.stdout)).toEqual({ running: true, port, screens: 0, openNotes: 0, style: 'css' })
     expect(ses(r, d, 'stop').status).toBe(0)
     expect(existsSync(join(r, 'design/.local/session.json'))).toBe(false)
     expect(() => process.kill(pid, 0)).toThrow()
@@ -63,6 +58,13 @@ describe('session', () => {
       expect(out.status).toBe(6)
       expect(out.stderr).toContain('Run /html-design setup again')
     }
+  }, 30000)
+
+  it('an old view-only config without the plugin Tailwind: start exits 6 (Review Focus 5)', () => {
+    const r = project()
+    const out = ses(r, makeData({ tailwind: false }), 'start', '--headless')
+    expect(out.status).toBe(6)
+    expect(out.stderr).toContain('Run /html-design setup again')
   }, 30000)
 
   it('chord copies the page with the posted preset', async () => {

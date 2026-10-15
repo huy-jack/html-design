@@ -33,6 +33,11 @@ describe('processCapture', () => {
     processCapture(base()); expect(processCapture(base()).status).toBe(409)
     expect(processCapture(base({ replace: true })).status).toBe(201)
   })
+  it('css style keeps every sheet, even one that looks like Tailwind output', () => {
+    const out = processCapture(base({ cfg: { ...DEFAULTS, style: 'css', css: null }, sheetTexts: [{ href: null, text: '/*! tailwindcss v4.1.18 */ :root{--color-brand:#1}' }] }))
+    expect(out.status).toBe(201)
+    expect(readFileSync(join(r, 'design/page.css'), 'utf8')).toContain('--color-brand')
+  })
   it('same id other width: width copy only when different', () => {
     processCapture(base())
     expect(processCapture(base({ width: 375 })).kind).toBe('same-as-base')
