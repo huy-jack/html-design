@@ -163,3 +163,11 @@ describe('link list edge cases', () => {
     expect(parseScreen(rewritten).states[1].html).toBe('<p>b again</p>')
   })
 })
+
+describe('project attributes', () => {
+  it('keeps project data-* attributes through serialize and parse', () => {
+    const text = serializeScreen({ screen: 's', states: [{ id: 'a', html: '<p>x</p>', attrs: { 'data-zeta': 'z', 'data-label': 'A', 'data-proposed': 'T-1' } }] })
+    expect(text).toMatch(/data-label="A" data-proposed="T-1" data-zeta="z"/)
+    expect(parseScreen(text).states[0].attrs).toEqual({ 'data-label': 'A', 'data-proposed': 'T-1', 'data-zeta': 'z' })
+  })
+})
