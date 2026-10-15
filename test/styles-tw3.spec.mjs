@@ -49,6 +49,22 @@ describe('tw3 detect', () => {
     execFileSync('git', ['add', 'src'], { cwd: n })
     expect(code(() => tw3.detect(n, flags))).toBe(4)
   })
+  it('--css must have @tailwind lines; both exit-4 CSS messages name --style css (final review I2)', () => {
+    const r = project()
+    writeFileSync(join(r, 'src/plain.css'), '.a { color: red; }')
+    execFileSync('git', ['add', 'src/plain.css'], { cwd: r })
+    expect(code(() => tw3.detect(r, { ...flags, css: 'src/plain.css' }))).toBe(4)
+    expect(msg(() => tw3.detect(r, { ...flags, css: 'src/plain.css' }))).toMatch(/--style css/)
+    const n = project()
+    execFileSync('git', ['rm', '-q', '--cached', 'src/styles.css'], { cwd: n })
+    expect(msg(() => tw3.detect(n, flags))).toMatch(/--style css/)
+  })
+  it('setup warns when the CSS file has no @tailwind base (final review I3)', () => {
+    const r = project()
+    writeFileSync(join(r, 'src/styles.css'), '@tailwind utilities;')
+    expect(tw3.detect(r, flags).warnings.some((w) => /@tailwind base/.test(w))).toBe(true)
+    expect(tw3.detect(project(), flags).warnings.some((w) => /@tailwind base/.test(w))).toBe(false)
+  })
   it('exit 6 without tailwindcss (naming --style css), exit 7 below 3.3, null for a v4 package', () => {
     const r = project({ link: false })
     expect(code(() => tw3.detect(r, flags))).toBe(6)
@@ -97,6 +113,15 @@ describe('tw3 build', () => {
     expect(out).toContain('.app-card')
     expect(out).toMatch(/\.dark\\:text-brand:is\(\.dark \*\)/)
     expect(out).not.toMatch(/\.p-4\s*\{/)
+  }, 60000)
+  it('own sheet without preflight: the Tailwind 3 defaults block marks it, not the banner (final review I3)', async () => {
+    const r = withClasses(project(), 'p-6')
+    writeFileSync(join(r, 'tailwind.config.cjs'), 'module.exports = { content: [], corePlugins: { preflight: false } }')
+    const out = await tw3.build(r, { ...cfg, twConfig: 'tailwind.config.cjs' }, makeData({ tw3: true }))
+    expect(out).not.toMatch(/tailwindcss v3/)
+    expect(tw3.ownSheet(out, cfg)).toBe(true)
+    expect(tw3.ownSheet('*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0}', cfg)).toBe(true)
+    expect(tw3.ownSheet('.lib{--tw-border-spacing-x:0.5rem;--tw-border-spacing-y:0.5rem}', cfg)).toBe(false)
   }, 60000)
   it('a config plugin that is not installed: rejects with Cannot find module (Review Focus 3)', async () => {
     const r = withClasses(project(), '')

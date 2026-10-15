@@ -11,6 +11,9 @@ import { SetupExit } from './setup-exit.mjs'
 
 const CONFIG_RE = /(^|\/)tailwind\.config\.(js|cjs|mjs|ts)$/
 const TW3_CSS = /@tailwind\s+(base|components|utilities)\b|@import\s+["']tailwindcss\/(base|components|utilities)/
+const TW3_BASE = /@tailwind\s+base\b|@import\s+["']tailwindcss\/base/
+// The defaults block @tailwind base always emits, also with preflight off (the banner comes only from preflight).
+const TW3_DEFAULTS = /\{\s*--tw-border-spacing-x\s*:\s*0\s*;\s*--tw-border-spacing-y\s*:\s*0\s*[;}]/
 const MISSING = 'Run /html-design setup again'
 const read = (f) => { try { return readFileSync(f, 'utf8') } catch { return '' } }
 const tracked = (root, spec) => {
@@ -73,8 +76,9 @@ export default {
     const [major, minor] = version.split('.').map(Number)
     if (major !== 3) return null
     if (minor < 3) throw new SetupExit(7, `Tailwind ${version} is older than 3.3. Upgrade Tailwind, or run setup with --style css.`)
+    if (flags.css && !TW3_CSS.test(read(join(root, flags.css)))) throw new SetupExit(4, `${flags.css} has no @tailwind lines. Pass the CSS file that has them, or run setup with --style css.`)
     const cssFiles = flags.css ? [flags.css] : tracked(root, '*.css').filter((f) => TW3_CSS.test(read(join(root, f))))
-    if (!cssFiles.length) throw new SetupExit(4, 'No CSS file with @tailwind lines found. Pass --css.')
+    if (!cssFiles.length) throw new SetupExit(4, 'No CSS file with @tailwind lines found. Pass --css, or run setup with --style css.')
     if (cssFiles.length > 1) throw new SetupExit(4, `Several Tailwind CSS files: ${cssFiles.join(', ')}. Pass --css.`)
     let config
     try {
@@ -83,7 +87,9 @@ export default {
       throw new SetupExit(6, `Could not load ${twConfig}: ${e.message.split('\n')[0]}`)
     }
     const { dark, warning } = mapDarkMode(config.darkMode)
-    return { css: cssFiles[0], twConfig, themeVars: [], tailwindVersion: version, dark, warnings: warning ? [warning] : [] }
+    const warnings = warning ? [warning] : []
+    if (!TW3_BASE.test(read(join(root, cssFiles[0])))) warnings.push(`${cssFiles[0]} has no @tailwind base, so a copy cannot tell your Tailwind CSS from other CSS. Some edits may not show.`)
+    return { css: cssFiles[0], twConfig, themeVars: [], tailwindVersion: version, dark, warnings }
   },
   installs: () => [{ dir: 'tw3', pkgs: ['postcss-import@16.1.0', 'postcss@8'] }],
   ready(dataDir, cfg, root) {
@@ -104,7 +110,7 @@ export default {
     const atImport = loadDepDataFirst(tw3Dir(dataDir), 'postcss-import', cssDir)
     return (await postcss([atImport(), req('tailwindcss')(config)]).process(readFileSync(cssFile, 'utf8'), { from: cssFile })).css
   },
-  ownSheet: (text, cfg) => isProjectSheet(text, cfg),
+  ownSheet: (text, cfg) => isProjectSheet(text, cfg) || TW3_DEFAULTS.test(text),
   mustBuild: () => false,
   tokens: (root, cfg) => configTokens(loadTwConfig(join(root, cfg.twConfig), appRequire(dirname(join(root, cfg.twConfig))))),
   watchDirs: (root, cfg) => [
