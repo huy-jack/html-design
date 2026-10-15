@@ -208,3 +208,7 @@ claude plugin validate ./plugin
 - `plugin/` is the only folder users install. It has no `package.json`: runtime packages load from the project or from the plugin data folder.
 - Tests live in `test/`. A fixture app with a login, images and fonts behind the login is in `test/fixture/`.
 
+
+## License
+
+MIT. See [LICENSE](LICENSE).
