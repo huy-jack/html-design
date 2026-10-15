@@ -5,59 +5,25 @@ import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { projectRoot, writeConfig } from './config.mjs'
-import { dataPaths, isMain } from './deps.mjs'
+import { dataPaths, findPackage, isMain } from './deps.mjs'
+import { designCss, detectDark, findCssEntries, themeVars } from './styles/tw4.mjs'
 import { setDataDir } from './runtime.mjs'
 import { writeSwitcher } from './switcher-node.mjs'
 
-const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), '..')
-const TW_IMPORT = /@import\s+["']tailwindcss["']/
+export { designCss, detectDark, findCssEntries, findPackage, themeVars }
 
-export function findCssEntries(root) {
-  const files = execFileSync('git', ['ls-files', '--cached', '*.css'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
-  return files.filter((f) => !f.includes('node_modules/') && TW_IMPORT.test(readFileSync(join(root, f), 'utf8'))).sort()
-}
-export function detectDark(css) {
-  const m = /@custom-variant\s+dark\s*\(([^;]*)\);/.exec(css)
-  if (!m) return null
-  const attr = /\[([\w-]+)=["']?([\w-]+)["']?\]/.exec(m[1])
-  if (attr) return `[${attr[1]}=${attr[2]}]`
-  const cls = /\.([\w-]+)/.exec(m[1])
-  return cls ? `.${cls[1]}` : null
-}
-// Tailwind v4 never emits --breakpoint-* as variables, so they cannot identify the app sheet.
-export function themeVars(css, n = 5) {
-  const block = /@theme[^{]*\{([\s\S]*?)\}/.exec(css)
-  return block ? [...block[1].matchAll(/(--[\w-]+)\s*:/g)].map((x) => x[1]).filter((v) => !v.startsWith('--breakpoint-')).slice(0, n) : []
-}
-export function designCss({ cssRel, dark, viewOnly }) {
-  const lines = ['/* Design CSS entry, built by html-design into dist/design.css. Do not edit by hand. */']
-  if (!viewOnly) lines.push(`@import '${cssRel}';`, `@source './.local/screens-classes.txt';`)
-  if (!viewOnly && !dark) lines.push('@custom-variant dark (&:where(.dark, .dark *));')
-  return lines.join('\n') + '\n'
-}
+const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), '..')
+
 export function makeSkeleton(root, cfg, pluginRoot = PLUGIN) {
   const d = join(root, cfg.dir)
   for (const p of ['screens', 'assets', 'dist', '.local']) mkdirSync(join(d, p), { recursive: true })
   const cssRel = cfg.css ? relative(d, join(root, cfg.css)) : null
-  writeFileSync(join(d, 'design.css'), designCss({ cssRel, dark: cfg.css ? detectDark(readFileSync(join(root, cfg.css), 'utf8')) : null, viewOnly: !cfg.css }))
+  const entry = cfg.css ? designCss({ cssRel, dark: detectDark(readFileSync(join(root, cfg.css), 'utf8')) }) : '/* View-only mode: no Tailwind file. */\n'
+  writeFileSync(join(d, 'design.css'), entry)
   for (const f of ['page.css', 'fonts.css']) if (!existsSync(join(d, f))) writeFileSync(join(d, f), '')
   writeFileSync(join(d, '.gitignore'), '.local/\n')
   copyFileSync(join(pluginRoot, 'templates', 'README.md'), join(d, 'README.md'))
   writeSwitcher(pluginRoot, d, cfg)
-}
-
-// A package's package.json, searched from startDir up to the project root and never above it, so a
-// node_modules folder outside the project (or a global one) does not count as the project's.
-export function findPackage(name, startDir, rootDir) {
-  let dir = startDir
-  for (;;) {
-    const f = join(dir, 'node_modules', name, 'package.json')
-    if (existsSync(f)) return f
-    if (dir === rootDir) return null
-    const up = dirname(dir)
-    if (up === dir) return null
-    dir = up
-  }
 }
 
 function install(data, pkgs) {

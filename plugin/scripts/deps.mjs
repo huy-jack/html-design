@@ -4,7 +4,7 @@ import { existsSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
-export const dataPaths = (data) => ({ modules: join(data, 'node_modules'), browsers: join(data, 'browsers'), profiles: join(data, 'profiles'), tailwind: join(data, 'tailwind') })
+export const dataPaths = (data) => ({ modules: join(data, 'node_modules'), browsers: join(data, 'browsers'), profiles: join(data, 'profiles'), tailwind: join(data, 'tailwind'), tw3: join(data, 'tw3') })
 
 export function parseDataArg(argv) {
   const i = argv.indexOf('--data')
@@ -37,4 +37,18 @@ export function loadDepDataFirst(dataDir, name, fromDir = process.cwd(), accept 
 export function isMain(moduleUrl) {
   if (!process.argv[1]) return false
   try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(moduleUrl)) } catch { return false }
+}
+
+// A package's package.json, searched from startDir up to the project root and never above it, so a
+// node_modules folder outside the project (or a global one) does not count as the project's.
+export function findPackage(name, startDir, rootDir) {
+  let dir = startDir
+  for (;;) {
+    const f = join(dir, 'node_modules', name, 'package.json')
+    if (existsSync(f)) return f
+    if (dir === rootDir) return null
+    const up = dirname(dir)
+    if (up === dir) return null
+    dir = up
+  }
 }

@@ -33,10 +33,10 @@ it('reads theme vars', () => {
   expect(themeVars('@theme { --font-display: x; --breakpoint-md: 48rem; --breakpoint-laptop: 64rem; --a: 1; --b: 2; --c: 3; --d: 4; --e: 5; }')).toEqual(['--font-display', '--a', '--b', '--c', '--d'])
 })
 it('design.css adds a class dark variant when the project has none', () => {
-  const css = designCss({ cssRel: '../src/index.css', dark: null, viewOnly: false })
+  const css = designCss({ cssRel: '../src/index.css', dark: null })
   expect(css).toContain('@custom-variant dark (&:where(.dark, .dark *));')
   expect(css).toContain("@source './.local/screens-classes.txt';")
-  expect(designCss({ cssRel: null, dark: null, viewOnly: true })).not.toContain('@import')
+  expect(designCss({ cssRel: '../src/index.css', dark: '.dark' })).not.toContain('@custom-variant')
 })
 it('skeleton writes folders, ignore file, switcher', () => {
   const r = repo()

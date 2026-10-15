@@ -5,7 +5,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readConfig, projectRoot } from './config.mjs'
-import { dataPaths, isMain, loadDep, parseDataArg } from './deps.mjs'
+import { isMain, parseDataArg } from './deps.mjs'
+import tw4 from './styles/tw4.mjs'
 import { decodeEntities } from './styles/vars.mjs'
 
 
@@ -26,14 +27,7 @@ export async function buildCss(root, cfg, dataDir) {
   const d = join(root, cfg.dir)
   mkdirSync(join(d, '.local'), { recursive: true })
   writeFileSync(join(d, '.local', 'screens-classes.txt'), screenClasses(join(d, 'screens')))
-  const from = join(d, 'design.css')
-  const cssDir = dirname(join(root, cfg.css))
-  const ver = loadDep(null, 'tailwindcss/package.json', cssDir).version
-  const fallback = join(dataPaths(dataDir ?? '').tailwind, ver)
-  const postcss = loadDep(fallback, 'postcss', cssDir)
-  const tailwind = loadDep(fallback, '@tailwindcss/postcss', cssDir)
-  const text = readFileSync(from, 'utf8')
-  return (await postcss([tailwind({ optimize: false })]).process(text, { from })).css
+  return tw4.build(root, cfg, dataDir)
 }
 
 export async function writeCss(root, cfg, dataDir) {
