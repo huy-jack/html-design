@@ -6,9 +6,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readConfig, projectRoot } from './config.mjs'
 import { dataPaths, isMain, loadDep, parseDataArg } from './deps.mjs'
+import { decodeEntities } from './styles/vars.mjs'
 
-const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
-const decode = (v) => v.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : (ENTITIES[e.toLowerCase()] ?? m)))
 
 // Tailwind reads files as raw text, so in a screen file it would see "[&amp;_p]:text-3xl", not the class
 // "[&_p]:text-3xl". The build scans a file of the decoded class lists (class, data-html-class,
@@ -18,7 +17,7 @@ export function screenClasses(screensDir) {
   return readdirSync(screensDir)
     .filter((f) => f.endsWith('.html'))
     .sort()
-    .flatMap((f) => [...readFileSync(join(screensDir, f), 'utf8').matchAll(/\s(?:class|data-html-class|data-body-class)="([^"]*)"/g)].map((m) => decode(m[1])))
+    .flatMap((f) => [...readFileSync(join(screensDir, f), 'utf8').matchAll(/\s(?:class|data-html-class|data-body-class)="([^"]*)"/g)].map((m) => decodeEntities(m[1])))
     .join('\n')
 }
 
