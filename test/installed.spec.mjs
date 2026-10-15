@@ -17,6 +17,9 @@ beforeAll(() => {
   data = mkdtempSync(join(tmpdir(), 'pdata-'))
   mkdirSync(join(data, 'node_modules'))
   for (const p of ['jsdom', 'prettier', 'playwright']) symlinkSync(join(REPO, 'node_modules', p), join(data, 'node_modules', p))
+  // The project has no Tailwind, so it is a css project: check builds with the plugin Tailwind from the data folder.
+  mkdirSync(join(data, 'tailwind', '4.1.18'), { recursive: true })
+  symlinkSync(join(REPO, 'node_modules'), join(data, 'tailwind', '4.1.18', 'node_modules'))
   proj = mkdtempSync(join(tmpdir(), 'iproj-'))
   execFileSync('git', ['init', '-q'], { cwd: proj })
   writeConfig(proj, {})

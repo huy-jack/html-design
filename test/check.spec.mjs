@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { checkScreens } from '../plugin/scripts/check.mjs'
 import { serializeScreen } from '../plugin/scripts/screen-file.mjs'
+import { makeData } from './helpers/data.mjs'
 it('flags raw colors, styles, scripts, broken links', () => {
   const d = mkdtempSync(join(tmpdir(), 'k-')); mkdirSync(d, { recursive: true })
   const html = '<div class="text-[#754aa1] p-4" style="color: red;"><script>x</script><button>Go</button></div>'
@@ -28,10 +29,11 @@ it('a link to another screen file: valid gives no finding, missing gives one', (
   expect(checkScreens(d).map((f) => f.value)).toEqual([expect.stringMatching(/"c" does not exist/), expect.stringMatching(/"two" is not in b/)])
 })
 it('CLI exits 1 on a problem and 0 when clean', () => {
+  const data = makeData()
   const r = mkdtempSync(join(tmpdir(), 'kc-'))
   writeFileSync(join(r, 'design-mode.json'), JSON.stringify({ dir: 'design' }))
   mkdirSync(join(r, 'design/screens'), { recursive: true })
-  const run = () => spawnSync(process.execPath, [join(import.meta.dirname, '../plugin/scripts/check.mjs'), '--data', join(import.meta.dirname, '..')], { cwd: r, encoding: 'utf8' })
+  const run = () => spawnSync(process.execPath, [join(import.meta.dirname, '../plugin/scripts/check.mjs'), '--data', data], { cwd: r, encoding: 'utf8' })
   writeFileSync(join(r, 'design/screens/a.html'), screenFile('a', '<p style="color:red">x</p>'))
   let p = run()
   expect(p.status).toBe(1)
@@ -41,3 +43,33 @@ it('CLI exits 1 on a problem and 0 when clean', () => {
   expect(p.status).toBe(0)
   expect(p.stdout).toMatch(/No problems/)
 })
+it('unknown class: a tw: class with no rule in the built CSS; app classes are never flagged', () => {
+  const d = mkdtempSync(join(tmpdir(), 'k-'))
+  writeFileSync(join(d, 'a.html'), screenFile('a', '<p class="tw:p-6 tw:bg-blue-500 card_x7f2">x</p>'))
+  const got = checkScreens(d, { builtCss: '.tw\\:p-6 { padding: 1px !important }', mustBuild: (c) => c.startsWith('tw:') })
+  expect(got.map((f) => [f.rule, f.value])).toEqual([['unknown class', 'tw:bg-blue-500']])
+})
+it('unknown var: (--x) and var(--x) in a class must be known; setting a var is fine', () => {
+  const d = mkdtempSync(join(tmpdir(), 'k-'))
+  writeFileSync(join(d, 'a.html'), screenFile('a', '<p class="tw:bg-(--brand) tw:text-(--brnd) bg-[var(--ink)] [--gap:4px]">x</p>'))
+  expect(checkScreens(d, { known: new Set(['--brand', '--ink']) }).map((f) => [f.rule, f.value])).toEqual([['unknown var', '--brnd in tw:text-(--brnd)']])
+})
+it('raw color also with a prefix', () => {
+  const d = mkdtempSync(join(tmpdir(), 'k-'))
+  writeFileSync(join(d, 'a.html'), screenFile('a', '<p class="tw:bg-[#fff]">x</p>'))
+  expect(checkScreens(d).map((f) => f.rule)).toEqual(['raw color'])
+})
+it('CLI: a failed build is 1 problem; a big page.css is a warning only', () => {
+  const r = mkdtempSync(join(tmpdir(), 'kc-'))
+  writeFileSync(join(r, 'design-mode.json'), JSON.stringify({ dir: 'design' }))
+  mkdirSync(join(r, 'design/screens'), { recursive: true })
+  const run = (data) => spawnSync(process.execPath, [join(import.meta.dirname, '../plugin/scripts/check.mjs'), '--data', data], { cwd: r, encoding: 'utf8' })
+  let p = run(makeData({ tailwind: false }))
+  expect(p.status).toBe(1)
+  expect(p.stdout).toMatch(/^build: Missing Tailwind 4\.1\.18: run \/html-design setup/m)
+  writeFileSync(join(r, 'design/page.css'), Buffer.alloc(10 * 1024 * 1024 + 1, 32))
+  p = run(makeData())
+  expect(p.status).toBe(0)
+  expect(p.stdout).toMatch(/warning: page\.css is 10\.0 MB \(over 10 MB\)/)
+  expect(p.stdout).toMatch(/No problems\./)
+}, 60000)
