@@ -1,7 +1,8 @@
 // Tailwind v4 projects: the design build runs the app's own Tailwind on design/design.css, which imports the
 // app's Tailwind file and adds the screens' class list as a source.
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { isProjectSheet } from '../css-sort.mjs'
 import { dataPaths, findPackage, loadDep } from '../deps.mjs'
@@ -81,7 +82,14 @@ export default {
     const fallback = join(dataPaths(dataDir ?? '').tailwind, ver)
     const postcss = loadDep(fallback, 'postcss', cssDir)
     const tailwind = loadDep(fallback, '@tailwindcss/postcss', cssDir)
-    return (await postcss([tailwind({ optimize: false })]).process(readFileSync(from, 'utf8'), { from })).css
+    // Without a base, Tailwind scans the whole project (the app's file has no source(none)), so any file could
+    // add or drop CSS. An empty folder as the base leaves only the screens' class list (the @source line).
+    const base = mkdtempSync(join(tmpdir(), 'hd-base-'))
+    try {
+      return (await postcss([tailwind({ base, optimize: false })]).process(readFileSync(from, 'utf8'), { from })).css
+    } finally {
+      rmSync(base, { recursive: true, force: true })
+    }
   },
   ownSheet: (text, cfg) => isProjectSheet(text, cfg),
   mustBuild: () => false,

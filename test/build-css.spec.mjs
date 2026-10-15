@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -39,6 +39,14 @@ describe('buildCss', () => {
     const css = await buildCss(r, readConfigOr(cfgBase), null)
     expect(css).toContain('#123456')
     expect(css).toMatch(/\.\\\[\\&_b\\\]\\:font-bold/)
+  }, 60000)
+  it('tw4: builds only the screens, never classes from other project files', async () => {
+    const r = project('<p class="mt-29">x</p>')
+    mkdirSync(join(r, 'src'), { recursive: true })
+    writeFileSync(join(r, 'src/page.html'), '<p class="mt-31">app code, not a design</p>')
+    const css = await buildCss(r, readConfigOr(cfgBase), null)
+    expect(css).toContain('.mt-29')
+    expect(css).not.toContain('.mt-31')
   }, 60000)
   it('css style: builds tw: classes with the plugin Tailwind from the data folder', async () => {
     const r = mkdtempSync(join(tmpdir(), 'bc-'))
@@ -82,8 +90,7 @@ describe('build-css CLI', () => {
     expect(res.stderr).toBe('')
     expect(res.status).toBe(0)
     const css = readFileSync(out, 'utf8')
-    // The other folder's classes are built. Tailwind 4 may also scan the project by itself (no source(none) in
-    // the app file), so today's classes can be there too: a superset, never a missing class.
     expect(css).toContain('.mt-23')
+    expect(css).not.toContain('.mt-17')
   }, 30000)
 })
