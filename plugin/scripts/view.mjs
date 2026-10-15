@@ -42,7 +42,7 @@ function validCopy(b) {
   if (typeof b.state !== 'string' || !STATE_ID.test(b.state)) return 'state must be a state id (letters, digits, - _ .)'
   if (b.label != null && (typeof b.label !== 'string' || b.label.length > 200)) return 'label must be at most 200 characters'
   if (b.replace != null && typeof b.replace !== 'boolean') return 'replace must be true or false'
-  if (b.tab != null && !isInt(b.tab, 0, 1000) && !(typeof b.tab === 'string' && /^t-\d{1,9}$/.test(b.tab))) return 'tab must be a tab id from the tabs list (or a tab number)'
+  if (b.tab != null && !isInt(b.tab, 0, 1000) && !(typeof b.tab === 'string' && /^(t-\d{1,9}|target:[A-Za-z0-9]{1,64})$/.test(b.tab))) return 'tab must be a tab id from the tabs list, target:<CDP target id>, or a tab number'
   return null
 }
 
@@ -159,7 +159,7 @@ function listScreens(dir) {
     })
 }
 
-// browser: the session's app browser ({ appPages, copyFrom, resize }), or null when no browser is open.
+// browser: the session's app browser ({ appPages, copyFrom, resize, targetIdOf }), or null when no browser is open.
 export async function createViewServer({ root, cfg, dataDir = null, port = 0, browser = null, watch: doWatch = true, build: buildOpt = true, onPreset = null }) {
   if (dataDir) setDataDir(dataDir)
   const build = buildOpt
@@ -241,7 +241,12 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     const pages = browser ? browser.appPages() : []
     if (!pages.length) return json(res, 503, { error: 'No app page is open. Start the session and open the app.' })
     let target
-    if (typeof b.tab === 'string') {
+    if (typeof b.tab === 'string' && b.tab.startsWith('target:')) {
+      // A script that drives the browser over the automation port names its tab by CDP target id.
+      const want = b.tab.slice('target:'.length)
+      for (const p of pages) if (!target && (await browser.targetIdOf(p).catch(() => null)) === want) target = p
+      if (!target) return json(res, 400, { error: `Tab ${b.tab} is not open.` })
+    } else if (typeof b.tab === 'string') {
       target = pages.find((p) => tabId(p) === b.tab)
       if (!target) return json(res, 400, { error: `Tab ${b.tab} is closed. Copy again to see the open tabs.` })
     } else if (b.tab != null) {
