@@ -184,7 +184,7 @@ Other hooks:
 - Any `data-*` attribute you add on a state `<template>` is kept on every rewrite.
 - `node <pluginRoot>/scripts/build-css.mjs --screens <dir> --out <file>` builds CSS for another folder of screen files.
 
-The automation port is open to any program on your computer while the session runs, like the viewer port.
+While a session runs, any program on this computer, from any user account, can fully control the session browser through the automation port, including the sites you logged in to there. Web pages cannot reach it: Chromium refuses connections from other origins. Do not run a session on a shared computer.
 
 ## What lands in your project
 
@@ -232,7 +232,7 @@ git clone https://github.com/huy-jack/html-design
 cd html-design
 npm install
 npx playwright install chromium
-npm test                                # 236 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
+npm test                                # 237 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
 claude --plugin-dir ./plugin            # use the local copy in Claude Code
 claude plugin validate ./plugin
 ```
