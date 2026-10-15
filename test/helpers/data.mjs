@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const NM = join(import.meta.dirname, '..', '..', 'node_modules')
-export function makeData({ tailwind = true, version = '1.56.1\n' } = {}) {
+export function makeData({ tailwind = true, tw3 = false, version = '1.56.1\n' } = {}) {
   const d = mkdtempSync(join(tmpdir(), 'hdata-'))
   mkdirSync(join(d, 'node_modules'))
   for (const p of ['playwright', 'jsdom', 'prettier']) symlinkSync(join(NM, p), join(d, 'node_modules', p))
@@ -12,6 +12,10 @@ export function makeData({ tailwind = true, version = '1.56.1\n' } = {}) {
   if (tailwind) {
     mkdirSync(join(d, 'tailwind', '4.1.18'), { recursive: true })
     symlinkSync(NM, join(d, 'tailwind', '4.1.18', 'node_modules'))
+  }
+  if (tw3) {
+    mkdirSync(join(d, 'tw3', 'node_modules'), { recursive: true })
+    symlinkSync(join(NM, 'postcss-import'), join(d, 'tw3', 'node_modules', 'postcss-import'))
   }
   return d
 }

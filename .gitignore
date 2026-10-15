@@ -2,3 +2,4 @@ node_modules/
 .data/
 .superpowers/
 test/.banned-words.txt
+test/fixture-tw3/node_modules/
