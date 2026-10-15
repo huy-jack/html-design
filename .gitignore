@@ -1,0 +1,4 @@
+node_modules/
+.data/
+.superpowers/
+test/.banned-words.txt

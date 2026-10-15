@@ -1,0 +1,1 @@
+{ "name": "html-design", "owner": { "name": "Huy" }, "plugins": [{ "name": "html-design", "source": "./plugin", "description": "Copy real app screens into HTML design files, edit them with Claude, view them live." }] }
