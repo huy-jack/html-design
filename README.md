@@ -169,6 +169,23 @@ Setup writes it. You can edit it by hand.
 
 After you change `css` or update Tailwind, run `/html-design setup` again.
 
+## Scripting
+
+While a session runs, `design/.local/session.json` holds `port` (the viewer), `cdpPort` (the browser's automation port, on 127.0.0.1 only), `version` and `pluginRoot`. A script of your own can drive the session browser and ask for copies:
+
+1. Connect: `chromium.connectOverCDP('http://127.0.0.1:' + cdpPort)`, take `contexts()[0]`, open a page and bring it to the state you want.
+2. Read the page's target id: `Target.getTargetInfo` on a CDP session for that page.
+3. Copy: `POST http://127.0.0.1:<port>/__copy` with `{ "screen", "state", "label"?, "replace"?, "tab": "target:<id>" }`. 201 = saved, 409 = the state exists at this width, 400 = the tab is not open.
+4. Close your pages before you disconnect. Disconnecting leaves them open.
+
+Other hooks:
+
+- An element with the attribute `data-hd-tool` is left out of every copy. Put it on your own dev-only overlays.
+- Any `data-*` attribute you add on a state `<template>` is kept on every rewrite.
+- `node <pluginRoot>/scripts/build-css.mjs --screens <dir> --out <file>` builds CSS for another folder of screen files.
+
+The automation port is open to any program on your computer while the session runs, like the viewer port.
+
 ## What lands in your project
 
 ```
@@ -215,7 +232,7 @@ git clone https://github.com/huy-jack/html-design
 cd html-design
 npm install
 npx playwright install chromium
-npm test                                # 232 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
+npm test                                # 235 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
 claude --plugin-dir ./plugin            # use the local copy in Claude Code
 claude plugin validate ./plugin
 ```

@@ -70,3 +70,20 @@ describe('buildCss', () => {
     expect(readFileSync(out, 'utf8')).toContain('.underline')
   }, 90000)
 })
+
+describe('build-css CLI', () => {
+  it('builds from another screens folder into another file', () => {
+    const r = project('<p class="mt-17">x</p>')
+    writeConfig(r, cfgBase)
+    const dir = mkdtempSync(join(tmpdir(), 'scr-'))
+    writeFileSync(join(dir, 'x.html'), '<template id="a"><p class="mt-23">x</p></template>')
+    const out = join(dir, 'out.css')
+    const res = spawnSync(process.execPath, [join(process.cwd(), 'plugin/scripts/build-css.mjs'), '--screens', dir, '--out', out, '--data', makeData()], { cwd: r, encoding: 'utf8' })
+    expect(res.stderr).toBe('')
+    expect(res.status).toBe(0)
+    const css = readFileSync(out, 'utf8')
+    // The other folder's classes are built. Tailwind 4 may also scan the project by itself (no source(none) in
+    // the app file), so today's classes can be there too: a superset, never a missing class.
+    expect(css).toContain('.mt-23')
+  }, 30000)
+})
