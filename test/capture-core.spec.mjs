@@ -46,6 +46,19 @@ describe('processCapture', () => {
     expect(f).toContain('data-body-vars="--gap:4px"')
     expect(lintAdded(null, parseScreen(f).states[0]).filter((x) => x.rule === 'inline style')).toEqual([])
   })
+  it('own sheet: a module comment before a font class rule does not drop it (next/font className)', () => {
+    processCapture(base({ clean: { ...base().clean, bodyClass: '__className_a1' }, sheetTexts: [{ href: 'http://h/app.css', text: ':root{--color-brand:#1}\n/* [next]/internal/font/google/inter.module.css */\n.__className_a1{font-family:Inter}\n.p-4{padding:1rem}' }] }))
+    const page = readFileSync(join(r, 'design/page.css'), 'utf8')
+    expect(page).toContain('.__className_a1{font-family:Inter}')
+    expect(page).not.toContain('.p-4')
+  })
+  it('own sheet is decided on the served text (raw); the stored text stays the rule list', () => {
+    const tw3cfg = { ...DEFAULTS, style: 'tw3', css: 'app.css', twConfig: 'tailwind.config.js', tailwindVersion: '3.4.17' }
+    processCapture(base({ cfg: tw3cfg, sheetTexts: [{ href: 'http://h/app.css', text: '.p-6 { padding: 1.5rem; }', raw: '/*! tailwindcss v3.4.17 | MIT License */\n.p-6{padding:1.5rem}' }, { href: 'http://h/lib.css', text: '.lib { color: red; }', raw: '/* lib */ .lib{color:red}' }] }))
+    const page = readFileSync(join(r, 'design/page.css'), 'utf8')
+    expect(page).not.toContain('.p-6')
+    expect(page).toContain('.lib { color: red; }')
+  })
   it('same id other width: width copy only when different', () => {
     processCapture(base())
     expect(processCapture(base({ width: 375 })).kind).toBe('same-as-base')

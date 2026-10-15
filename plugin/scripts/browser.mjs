@@ -74,21 +74,22 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
     if (clean_warn) clean.warnings.push(clean_warn)
     const sheetTexts = []
     for (const s of clean.sheets) {
-      let text = s.text
-      // A <link> sheet: the served file, not the rule list the page parsed. The rule list drops comments,
-      // and the banner that marks the app's own Tailwind 3 output is a comment. The rule list stays as
-      // the fallback when the file cannot be downloaded.
+      let raw = null
+      // A <link> sheet: also the served file. The rule list the page parsed drops comments, and the banner
+      // that marks the app's own Tailwind 3 output is a comment, so the served file decides which sheet is
+      // the app's own. The rule list is still what gets stored; the served file only when it is missing.
       if (s.href) {
         const buf = await fetchBuf(page, s.href)
-        if (buf) text = buf.toString('utf8')
-        else if (text === null) { clean.warnings.push(`css file not downloaded: ${s.href}`); continue }
+        if (buf) raw = buf.toString('utf8')
+        else if (s.text === null) { clean.warnings.push(`css file not downloaded: ${s.href}`); continue }
       }
-      if (text !== null) sheetTexts.push({ href: s.href, text })
+      const text = s.text ?? raw
+      if (text !== null) sheetTexts.push({ href: s.href, text, raw })
     }
     const urls = new Set(clean.assets.map((a) => a.url))
     for (const s of sheetTexts) {
       // The project's own sheet is rebuilt, but the fonts bundled in it are kept: fetch only those.
-      const source = adapterFor(cfg).ownSheet(s.text, cfg) ? splitFontFaces(s.text).faces.join('\n') : s.text
+      const source = adapterFor(cfg).ownSheet(s.raw ?? s.text, cfg) ? splitFontFaces(s.text).faces.join('\n') : s.text
       for (const u of cssUrls(source, s.href ?? pageUrl)) urls.add(u)
     }
     const files = new Map()

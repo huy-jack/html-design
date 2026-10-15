@@ -77,11 +77,13 @@ export function processCapture({ root, cfg, screen, state, label, width, replace
     for (const s of sheetTexts) {
       const base = s.href ?? cfg.url ?? 'http://localhost/'
       const { faces, rest } = splitFontFaces(s.text)
-      if (adapterFor(cfg).ownSheet(s.text, cfg)) {
+      // s.raw is the served file of a <link> sheet: it still has the comments (the Tailwind 3 banner is one).
+      if (adapterFor(cfg).ownSheet(s.raw ?? s.text, cfg)) {
         // Frameworks bundle font CSS into the Tailwind file (Next.js next/font): keep the fonts and the
         // rules for the html/body classes, drop the rest (the design build makes it again).
         saveFaces(faces, base)
-        const keep = [...rest.matchAll(/(?<=^|\})\s*(\.([\w-]+)\s*\{[^{}]*\})/g)].filter((m) => rootClasses.has(m[2])).map((m) => m[1])
+        // Comments go first: a module comment before a class rule would hide it from the match.
+        const keep = [...rest.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?<=^|\})\s*(\.([\w-]+)\s*\{[^{}]*\})/g)].filter((m) => rootClasses.has(m[2])).map((m) => m[1])
         if (keep.length) appendUnique(join(d, 'page.css'), keep.join('\n'))
         continue
       }
