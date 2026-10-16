@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { readConfig, writeConfig } from '../plugin/scripts/config.mjs'
 import { serializeScreen } from '../plugin/scripts/screen-file.mjs'
+import { writeNotes } from '../plugin/scripts/notes.mjs'
 import { makeSkeleton } from '../plugin/scripts/setup.mjs'
 import { createViewServer, homePage } from '../plugin/scripts/view.mjs'
 
@@ -125,6 +126,31 @@ describe('home page in a browser', () => {
     await v.close()
     await pg.waitForFunction(() => /Session stopped/.test(document.getElementById('pill').innerText), null, { timeout: 6000 })
     expect(await text(pg, '#pill')).toBe('Session stopped. In Claude Code, type /html-design start')
+  }, 30000)
+
+  it('open notes: step 3 is next (blue circle), says how many wait and copies "do my notes"; step 2 ticks once any note was saved', async () => {
+    const { r, cfg } = project()
+    writeFileSync(join(r, 'design/screens/one.html'), screen('one', [['a', 'Alpha']]))
+    const base = { screen: 'one', state: 'a', width: 1440, theme: 'light', path: [1], text: 'a', tag: 'p', note: 'n' }
+    writeNotes(r, cfg, [{ ...base, id: 'n-1-1', done: true }])
+    const v = await viewer({ root: r, cfg, browser: stubBrowser([tab('app')]) })
+    const ctx = await br.newContext({ permissions: ['clipboard-read', 'clipboard-write'] })
+    cleanup.push(() => ctx.close())
+    const pg = await ctx.newPage()
+    await pg.goto(v.url + '/')
+    await pg.waitForFunction(() => document.querySelector('[data-step="note"]').dataset.done === 'true')
+    expect(await pg.locator('[data-step="say"]').getAttribute('data-next')).toBe('false')
+    expect(await pg.locator('#copyNotes').isHidden()).toBe(true)
+    writeNotes(r, cfg, [{ ...base, id: 'n-1-1', done: true }, { ...base, id: 'n-1-2', done: false }, { ...base, id: 'n-1-3', done: false }])
+    await pg.waitForFunction(() => document.querySelector('[data-step="say"]').dataset.next === 'true', null, { timeout: 5000 })
+    expect(await text(pg, '[data-step="say"] .saytext')).toBe('2 notes waiting. In Claude Code say: do my notes')
+    expect(await pg.locator('[data-step="say"] .num').evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])).toEqual(['rgb(37, 99, 235)', 'rgb(255, 255, 255)'])
+    expect(await text(pg, '#copyNotes')).toBe('Copy "do my notes"')
+    await pg.click('#copyNotes')
+    expect(await pg.evaluate(() => navigator.clipboard.readText())).toBe('do my notes')
+    // The tool theme button says what it changes; the pressed sort is a raised chip.
+    expect(await pg.getAttribute('#uiTheme', 'aria-label')).toBe('Tool colors (not your design)')
+    expect(await pg.locator('#sort [aria-pressed="true"]').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)')
   }, 30000)
 
   it('Open Copy tab switches to the open Copy tab in the session browser; elsewhere it is a plain link', async () => {

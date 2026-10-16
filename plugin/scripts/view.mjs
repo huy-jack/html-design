@@ -145,11 +145,11 @@ export function homePage(screens, { project = '', style = '', appUrl = null } = 
     })
     .join('')
   const openCopy = `<a class="btn primary" id="openCopy" href="/__copy" target="_blank" data-focus="/__copy">${ICONS.copy}Open Copy tab</a>`
-  const step = (key, n, html) => `<li data-step="${key}" data-done="false"><span class="num">${n}</span><div>${html}</div><span class="done">${ICONS.check}Done</span></li>`
+  const step = (key, n, html, extra = '') => `<li data-step="${key}" data-done="false"><span class="num">${n}</span><div>${html}</div><span class="done">${ICONS.check}Done</span>${extra}</li>`
   const content = screens.length
     ? `<div class="head"><div><h1>Screens</h1><p class="sub" id="count">${plural(screens.length, 'screen')} · ${plural(total, 'state')}</p><p class="explain">A screen holds several states: the same page with a menu open, empty, loading.</p></div><div class="sp"></div>
 <div class="seg" id="sort" role="group" aria-label="Sort"><button type="button" data-sort="recent" aria-pressed="true">Recent</button><button type="button" data-sort="name" aria-pressed="false">A–Z</button><button type="button" data-sort="states" aria-pressed="false">Most states</button></div>${openCopy}</div>
-<ol class="strip" id="steps" aria-label="How it works">${step('copy', 1, 'Copy a screen')}${step('note', 2, 'Pick and write notes')}${step('say', 3, 'In Claude Code say: <b>do my notes</b>')}</ol>
+<ol class="strip" id="steps" aria-label="How it works">${step('copy', 1, 'Copy a screen')}${step('note', 2, 'Pick and write notes')}${step('say', 3, '<span class="saytext">In Claude Code say: <b>do my notes</b></span>', '<button type="button" class="btn" id="copyNotes" hidden>Copy "do my notes"</button>').replace('data-done="false">', 'data-done="false" data-next="false">')}</ol>
 <div class="grid" id="grid">${cards}</div><div class="none" id="none" hidden><p id="noneText">No screen matches</p><button type="button" class="btn" id="clear-search">Clear search</button></div>`
     : `<section class="first"><h1>No screens yet</h1><p class="lead">Three steps to your first design change.</p><ol class="steps" id="steps">
 ${step('app', 1, `<b>Open your app.</b> In this browser window, open your app in its own tab (for example ${esc(exampleAddress(appUrl))}).`)}
@@ -165,6 +165,7 @@ h1{font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}.sub{co
 .strip li,.steps li{display:flex;align-items:center;gap:8px}.strip b{color:var(--ink)}
 .num{width:24px;height:24px;border-radius:50%;border:1px solid var(--edge);display:inline-grid;place-items:center;font-size:12px;font-weight:600;color:var(--dim);flex:none}
 .done{display:none;align-items:center;gap:4px;color:var(--ok);font-size:12px;font-weight:600}[data-done=true] .done{display:inline-flex}[data-done=true] .num{border-color:var(--ok);color:var(--ok)}
+[data-next=true] .num{background:var(--accent);border-color:var(--accent);color:#fff}[data-next=true] .saytext{color:var(--ink);font-weight:500}#copyNotes{height:28px;padding:0 12px;font-size:13px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:28px 24px}.card{min-width:0}
 .th{display:block;aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line);position:relative;transition:transform .15s,box-shadow .15s}
 .th iframe{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;transform-origin:0 0;transform:scale(var(--k,.16));pointer-events:none;background:#fff}
@@ -242,8 +243,15 @@ function firstMatch() {
 var lastStatus = null
 function tick() {
   if (!lastStatus) return
-  var done = { app: lastStatus.tabs > 0, copy: lastStatus.screens > 0, note: lastStatus.notes > 0, say: false }
+  var done = { app: lastStatus.tabs > 0, copy: lastStatus.screens > 0, note: lastStatus.notesEver > 0, say: false }
   each('#steps [data-step]', function (li) { li.setAttribute('data-done', String(!!done[li.dataset.step])) })
+  // Open notes: step 3 is next, says how many wait, and offers the words to copy.
+  var say = document.querySelector('[data-step="say"]')
+  if (!say) return
+  var next = lastStatus.notes > 0
+  say.setAttribute('data-next', String(next))
+  say.querySelector('.saytext').innerHTML = (next ? plural(lastStatus.notes, 'note') + ' waiting. ' : '') + 'In Claude Code say: <b>do my notes</b>'
+  $('copyNotes').hidden = !next
 }
 function render() { times(); fit(); sortBy(sortKey); filter(); tick() }
 // New or changed screens: marked New for 3 s. Their previews load again after the CSS build (stale).
@@ -292,6 +300,8 @@ function poll() {
   }, function () { pill(false) })
 }
 document.addEventListener('click', function (e) {
+  var c = e.target.closest && e.target.closest('#copyNotes')
+  if (c && navigator.clipboard) navigator.clipboard.writeText('do my notes').then(function () { c.textContent = 'Copied'; setTimeout(function () { c.textContent = 'Copy "do my notes"' }, 1500) }, function () {})
   var b = e.target.closest && e.target.closest('#sort button')
   if (b) sortBy(b.dataset.sort)
   if (e.target.closest && e.target.closest('#clear-search')) { q.value = ''; filter(); q.focus() }
@@ -1064,10 +1074,12 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     if (path === '/__recent') return json(res, 200, recent)
     if (path === '/__status') {
       // Polled by home and the Copy tab: a failed fetch means the session stopped.
+      // notes: open ones; notesEver: every note in the file, done ones too (home ticks step 2 with it).
       let notes = 0
-      try { notes = readNotes(root, cfg).filter((x) => !x.done).length } catch {}
+      let notesEver = 0
+      try { const all = readNotes(root, cfg); notes = all.filter((x) => !x.done).length; notesEver = all.length } catch {}
       const screens = existsSync(screensDir) ? readdirSync(screensDir).filter((f) => f.endsWith('.html')).length : 0
-      return json(res, 200, { browser: !!browser, tabs: browser ? browser.appPages().length : 0, screens, notes })
+      return json(res, 200, { browser: !!browser, tabs: browser ? browser.appPages().length : 0, screens, notes, notesEver })
     }
     if (path === '/__blank') return html('<!doctype html><title>blank</title>')
     if (path === '/__copy') return html(copyWindow({ screens: existsSync(screensDir) ? readdirSync(screensDir).filter((f) => f.endsWith('.html')).sort().map((f) => f.replace(/\.html$/, '')) : [], widths: cfg.widths }))

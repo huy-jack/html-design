@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { buildCssInChild } from '../plugin/scripts/build-css.mjs'
 import { openBrowser } from '../plugin/scripts/browser.mjs'
 import { readConfig, writeConfig } from '../plugin/scripts/config.mjs'
-import { readNotes } from '../plugin/scripts/notes.mjs'
+import { readNotes, writeNotes } from '../plugin/scripts/notes.mjs'
 import { serializeScreen } from '../plugin/scripts/screen-file.mjs'
 import { makeSkeleton } from '../plugin/scripts/setup.mjs'
 import { copyWindow, createViewServer, homePage, stateFromText, validNote } from '../plugin/scripts/view.mjs'
@@ -395,10 +395,13 @@ describe('guided pages: server', () => {
     const { r, cfg } = project()
     writeFileSync(join(r, 'design/screens/x.html'), screen(['a']))
     const alone = await viewer({ root: r, cfg })
-    expect(await (await fetch(`http://127.0.0.1:${alone.port}/__status`)).json()).toEqual({ browser: false, tabs: 0, screens: 1, notes: 0 })
+    expect(await (await fetch(`http://127.0.0.1:${alone.port}/__status`)).json()).toEqual({ browser: false, tabs: 0, screens: 1, notes: 0, notesEver: 0 })
     const v = await viewer({ root: r, cfg, browser: stubBrowser([page('Home')]) })
     await post(v.port, '/__notes', note)
-    expect(await (await fetch(`http://127.0.0.1:${v.port}/__status`)).json()).toEqual({ browser: true, tabs: 1, screens: 1, notes: 1 })
+    expect(await (await fetch(`http://127.0.0.1:${v.port}/__status`)).json()).toEqual({ browser: true, tabs: 1, screens: 1, notes: 1, notesEver: 1 })
+    // notesEver counts done notes too: step 2 on home stays ticked after Claude did the notes.
+    writeNotes(r, cfg, readNotes(r, cfg).map((n) => ({ ...n, done: true })))
+    expect(await (await fetch(`http://127.0.0.1:${v.port}/__status`)).json()).toMatchObject({ notes: 0, notesEver: 1 })
   })
   it('POST /__focus brings the open Copy tab or viewer tab to the front; 503 without a session browser; 400 for another path', async () => {
     const { r, cfg } = project()
