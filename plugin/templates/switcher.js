@@ -203,7 +203,7 @@
   // The viewer's look: the same tokens as the plugin's home page and Copy tab. Light by default, dark when the
   // computer asks for it; data-ui on .sd-app is the user's own choice (key hd-ui). The design stays the brightest
   // thing on screen: tool colors stay outside the frame, except the Pick outline and tag while Pick is on.
-  var UI_LIGHT = '--bg:#ffffff;--chrome:#f6f7f9;--raise:#ffffff;--hover:#eceef2;--line:#e4e4e7;--edge:#8e8e98;--ink:#18181b;--dim:#52525b;--mute:#63636b;--accent:#2563eb;--accent-h:#1d4ed8;--link:#2563eb;--sel:#eff4ff;--sel-ink:#1e40af;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--bad-bg:#fef2f2;--stage:#e9ebef;--ring:#8e8e98;--pick:#e11d74;color-scheme:light'
+  var UI_LIGHT = '--bg:#ffffff;--chrome:#f6f7f9;--raise:#ffffff;--hover:#eceef2;--line:#e4e4e7;--edge:#8e8e98;--ink:#18181b;--dim:#52525b;--mute:#63636b;--accent:#2563eb;--accent-h:#1d4ed8;--accent-p:#1e40af;--link:#2563eb;--sel:#eff4ff;--sel-ink:#1e40af;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--bad-bg:#fef2f2;--stage:#e9ebef;--ring:#8e8e98;--pick:#e11d74;color-scheme:light'
   var UI_DARK = '--bg:#111113;--chrome:#18181b;--raise:#1f1f23;--hover:#2a2a2e;--line:#2a2a2e;--edge:#71717a;--ink:#f4f4f5;--dim:#a1a1aa;--mute:#8b8b94;--link:#7aa7ff;--sel:#1c2a4a;--sel-ink:#f4f4f5;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--bad-bg:#2c1515;--stage:#0b0b0d;--ring:#71717a;color-scheme:dark'
   var MONO = '"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace'
   var CSS =
@@ -214,28 +214,28 @@
     '.sd-app *{box-sizing:border-box}.sd-app [hidden]{display:none !important}.sd-app :focus-visible{outline:2px solid var(--accent);outline-offset:2px}' +
     '.sd-app svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}' +
     '.sd-side{background:var(--chrome);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}' +
-    '.sd-scr{height:56px;display:flex;align-items:center;gap:8px;padding:0 14px 0 10px;border-bottom:1px solid var(--line);flex:none}' +
+    '.sd-scr{height:56px;display:flex;align-items:center;gap:8px;padding:0 12px 0 8px;border-bottom:1px solid var(--line);flex:none}' +
     '.sd-scr a{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;color:var(--dim)}.sd-scr a:hover{background:var(--hover);color:var(--ink)}' +
     '.sd-scr b{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sd-scr small{color:var(--dim);font-size:12px;white-space:nowrap}' +
-    '.sd-kbd{font:500 12px/1.4 ' + MONO + ';color:var(--dim);border:1px solid var(--edge);border-radius:4px;padding:0 5px}' +
-    '.sd-find{position:relative;margin:12px 12px 4px;flex:none;display:block}.sd-find svg{position:absolute;left:11px;top:10px;color:var(--mute)}' +
-    '.sd-find input{width:100%;height:36px;padding:0 64px 0 34px;border:1px solid var(--edge);border-radius:8px;background:var(--raise);color:var(--ink);font:inherit;outline:none}' +
+    '.sd-kbd{font:500 12px/1.4 ' + MONO + ';color:var(--dim);border:1px solid var(--edge);border-radius:4px;padding:0 4px}' +
+    '.sd-find{position:relative;margin:12px 12px 4px;flex:none;display:block}.sd-find svg{position:absolute;left:12px;top:10px;color:var(--mute)}' +
+    '.sd-find input{width:100%;height:36px;padding:0 64px 0 36px;border:1px solid var(--edge);border-radius:8px;background:var(--raise);color:var(--ink);font:inherit;outline:none}' +
     '.sd-find input:focus{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}.sd-find input::placeholder{color:var(--mute)}' +
     '.sd-find [data-sd=filter-count]{position:absolute;right:10px;top:8px;font-size:12px;color:var(--dim);pointer-events:none}' +
     '.sd-list{flex:1;overflow:auto;padding:0 0 12px}' +
-    '.sd-grp{padding:16px 18px 6px;color:var(--dim);font-size:12px;font-weight:600;letter-spacing:.03em;text-transform:uppercase}' +
-    '.sd-row{display:flex;align-items:center;gap:10px;width:calc(100% - 16px);margin:1px 8px;padding:0 10px;height:34px;border-radius:8px;color:var(--ink);background:none;border:0;font:inherit;text-align:left;cursor:pointer}' +
+    '.sd-grp{padding:16px 16px 8px;color:var(--dim);font-size:12px;font-weight:600;letter-spacing:.03em;text-transform:uppercase}' +
+    '.sd-row{display:flex;align-items:center;gap:8px;width:calc(100% - 16px);margin:1px 8px;padding:0 8px;height:34px;border-radius:8px;color:var(--ink);background:none;border:0;font:inherit;text-align:left;cursor:pointer}' +
     '.sd-row:hover{background:var(--hover)}.sd-row[aria-current=true]{background:var(--sel);color:var(--sel-ink);font-weight:500;box-shadow:inset 3px 0 0 var(--accent)}' +
     '.sd-row i{font:500 12px ' + MONO + ';font-style:normal;color:var(--dim);min-width:20px;text-align:right}' +
     '.sd-row .sd-lab{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sd-row small{color:var(--dim);font-size:12px;font-weight:400}' +
     '.sd-ndot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none}.sd-ncount{color:var(--warn);font-size:12px;font-weight:600;flex:none}' +
     '.sd-empty{padding:16px;color:var(--dim)}' +
-    '.sd-foot{border-top:1px solid var(--line);padding:10px 16px;color:var(--dim);font-size:12px;flex:none}.sd-foot:empty{display:none}' +
+    '.sd-foot{border-top:1px solid var(--line);padding:8px 16px;color:var(--dim);font-size:12px;flex:none}.sd-foot:empty{display:none}' +
     '.sd-main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}' +
     '.sd-bar{height:56px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--chrome)}' +
     '.sd-title{display:flex;flex-direction:column;line-height:1.3;min-width:60px;flex:1}.sd-title b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '.sd-title span{color:var(--dim);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-    '.sd-bar button,.sd-bar select{height:34px;min-width:34px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border-radius:8px;color:var(--ink);border:1px solid var(--edge);background:var(--raise);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}' +
+    '.sd-bar button,.sd-bar select{height:34px;min-width:34px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 8px;border-radius:8px;color:var(--ink);border:1px solid var(--edge);background:var(--raise);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}' +
     '.sd-bar button:hover{background:var(--hover)}.sd-bar button:disabled{opacity:.45;cursor:not-allowed}' +
     '.sd-bar [data-sd=pick][aria-pressed=true]{background:var(--pick);border-color:var(--pick);color:#fff}' +
     '.sd-seg{display:inline-flex;padding:2px;background:var(--chrome);border:1px solid var(--edge);border-radius:8px;gap:2px}' +
@@ -244,41 +244,45 @@
     '.sd-vr{width:1px;height:24px;background:var(--line);flex:none}' +
     '.sd-bar .sd-plain{border-color:transparent;background:none;padding:0}.sd-count{font:500 12px ' + MONO + ';color:var(--dim);min-width:40px;text-align:center}' +
     '.sd-bar [data-sd=notes].sd-has{color:var(--warn)}.sd-hint{color:var(--warn);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-    '[data-sd=status]{font-size:12px;color:var(--dim);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}' +
+    '[data-sd=status]{font-size:12px;color:var(--dim);display:inline-flex;align-items:center;gap:8px;white-space:nowrap}' +
     '.sd-spin{width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sd-spin .8s linear infinite}@keyframes sd-spin{to{transform:rotate(360deg)}}' +
-    '.sd-bar [data-sd=state-pick]{display:none;max-width:160px;padding:0 8px}' +
+    '.sd-bar [data-sd=state-pick]{display:none;max-width:200px;padding:0 8px;margin-right:auto}' +
+    '.sd-bar .sd-homebar{display:none;place-items:center;width:34px;height:34px;border-radius:8px;color:var(--dim);flex:none}.sd-bar .sd-homebar:hover{background:var(--hover);color:var(--ink)}' +
     '.sd-stage{flex:1;min-height:0;overflow:auto;background:var(--stage);padding:20px 32px 32px}' +
     '.sd-banners{display:grid;gap:8px;margin:0 auto}.sd-banners:not(:empty){margin-bottom:12px}' +
-    '.sd-pickbar{background:var(--pick);color:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500}' +
-    '.sd-stopped{background:var(--raise);border:1px solid var(--edge);color:var(--ink);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500}' +
-    '.sd-buildcard{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;background:var(--bad-bg);border:1px solid var(--bad);border-radius:12px;padding:12px 16px;font-size:13px}.sd-buildcard>svg{color:var(--bad);margin-top:2px}' +
-    '.sd-buildcard details{grid-column:2}.sd-buildcard summary{cursor:pointer;color:var(--dim)}.sd-buildcard pre{white-space:pre-wrap;font:12px/1.5 ' + MONO + ';color:var(--dim);margin:6px 0 0}' +
-    '.sd-cap{display:flex;align-items:center;justify-content:space-between;gap:16px;color:var(--dim);font-size:12px;min-height:28px;margin:0 auto 10px;overflow:hidden}.sd-cap b{font:500 12px ' + MONO + ';color:var(--ink)}' +
-    '.sd-capl{display:flex;align-items:center;gap:10px}[data-sd=source]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.sd-pickbar{background:var(--pick);color:#fff;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:500}' +
+    '.sd-stopped{background:var(--raise);border:1px solid var(--edge);color:var(--ink);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:500}' +
+    '.sd-buildcard{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;background:var(--bad-bg);border:1px solid var(--bad);border-radius:12px;padding:12px 16px;font-size:13px}.sd-buildcard>svg{color:var(--bad);margin-top:2px}' +
+    '.sd-buildcard details{grid-column:2}.sd-buildcard summary{cursor:pointer;color:var(--dim)}.sd-buildcard pre{white-space:pre-wrap;font:12px/1.5 ' + MONO + ';color:var(--dim);margin:8px 0 0}' +
+    '.sd-cap{display:flex;align-items:center;justify-content:space-between;gap:16px;color:var(--dim);font-size:12px;min-height:28px;margin:0 auto 8px;overflow:hidden}.sd-cap b{font:500 12px ' + MONO + ';color:var(--ink)}' +
+    '.sd-capl{display:flex;align-items:center;gap:8px}[data-sd=source]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '.sd-zoom{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--edge);border-radius:8px;background:var(--chrome)}' +
     '.sd-zoom button{height:24px;padding:0 8px;border:0;border-radius:6px;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:500;cursor:pointer}.sd-zoom button[aria-pressed=true]{background:var(--accent);color:#fff}' +
     '.sd-fit{margin:0 auto;position:relative;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--ring),0 12px 32px -12px rgba(0,0,0,.3);background:#fff}' +
     '.sd-frame{position:absolute;top:0;left:0;border:0;background:#fff;transform-origin:0 0}' +
-    '.sd-keys{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);color:var(--dim);font-size:12px;flex:none}' +
+    '.sd-keys{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-top:1px solid var(--line);color:var(--dim);font-size:12px;flex:none}' +
     '.sd-keys>span{display:flex;gap:4px;align-items:center}' +
-    '.sd-app .sd-btn{height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--edge);background:var(--raise);color:var(--ink);font:inherit;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}.sd-app .sd-btn:hover{background:var(--hover)}' +
-    '.sd-app .sd-primary{background:var(--accent);border-color:var(--accent);color:#fff}.sd-app .sd-primary:hover{background:var(--accent-h)}.sd-app .sd-btn:disabled{opacity:.6;cursor:default}' +
-    '.sd-notebox{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:20;width:min(640px,calc(100vw - 32px));display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px;background:var(--chrome);color:var(--ink);border:1px solid var(--edge);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3)}' +
+    '.sd-app .sd-btn{height:36px;padding:0 12px;border-radius:8px;border:1px solid var(--edge);background:var(--raise);color:var(--ink);font:inherit;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}.sd-app .sd-btn:hover{background:var(--hover)}' +
+    '.sd-app .sd-primary{background:var(--accent);border-color:var(--accent);color:#fff}.sd-app .sd-primary:hover{background:var(--accent-h)}.sd-app .sd-primary:active{background:var(--accent-p)}.sd-app .sd-btn:disabled{opacity:.6;cursor:default}' +
+    // The dock: a row under the stage for the note box, the notes list and the toast. The stage gets shorter,
+    // so these never cover the design.
+    '.sd-dock{flex:none;display:grid;gap:8px;justify-items:center;padding:12px 16px;border-top:1px solid var(--line);background:var(--chrome)}.sd-dock:not(:has(> :not([hidden]))){display:none}' +
+    '.sd-notebox{width:min(720px,100%);display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:var(--ink)}' +
     '.sd-notebox [data-sd=note-label]{width:100%;font-size:13px;font-weight:500;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '.sd-notebox input{flex:1 1 240px;height:38px;border:1px solid var(--edge);border-radius:8px;background:var(--raise);color:inherit;padding:0 12px;font:inherit;outline:none}.sd-notebox input:focus{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}' +
     '.sd-notebox [data-sd=note-error]{width:100%;margin:0;color:var(--bad);font-size:13px;font-weight:500}' +
     '.sd-notebox [data-sd=discard]{width:100%;display:flex;gap:8px;align-items:center}.sd-notebox [data-sd=discard] span{flex:1;font-weight:600}' +
-    '.sd-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:21;display:flex;align-items:center;gap:12px;padding:10px 10px 10px 16px;max-width:calc(100vw - 32px);background:var(--chrome);color:var(--ink);border:1px solid var(--edge);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);font-weight:500}' +
+    '.sd-toast{width:min(720px,100%);display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--ink);font-weight:500}' +
     '.sd-picktag{position:fixed;z-index:19;pointer-events:none;background:var(--pick);color:#fff;font-size:12px;font-weight:600;line-height:20px;padding:0 8px;border-radius:6px;white-space:nowrap}' +
-    '.sd-nlist{position:absolute;right:12px;top:62px;z-index:15;width:min(420px,calc(100% - 24px));max-height:calc(100% - 80px);overflow:auto;background:var(--chrome);color:var(--ink);border:1px solid var(--edge);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);padding:8px 8px 4px}' +
-    '.sd-nlist h3{font-size:16px;font-weight:600;padding:6px 8px;margin:0}.sd-nlist>p{margin:0;padding:8px;color:var(--dim);font-size:13px}' +
-    '.sd-nrow{padding:10px 8px;border-top:1px solid var(--line)}.sd-ngo{background:none;border:0;padding:0;color:var(--link);font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-align:left}' +
-    '.sd-nrow p{margin:4px 0 8px;overflow-wrap:anywhere}.sd-nrow input{width:100%;height:36px;margin:6px 0 8px;border:1px solid var(--edge);border-radius:8px;background:var(--raise);color:inherit;padding:0 10px;font:inherit}' +
-    '.sd-nact{display:flex;gap:6px}.sd-nact .sd-btn{height:30px;padding:0 10px;font-size:13px}' +
+    '.sd-nlist{width:min(720px,100%);max-height:40vh;overflow:auto;color:var(--ink)}' +
+    '.sd-nlist h3{font-size:16px;font-weight:600;padding:2px 8px 8px;margin:0}.sd-nlist>p{margin:0;padding:8px;color:var(--dim);font-size:13px}' +
+    '.sd-nrow{padding:8px 8px;border-top:1px solid var(--line)}.sd-ngo{background:none;border:0;padding:0;color:var(--link);font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-align:left}' +
+    '.sd-nrow p{margin:4px 0 8px;overflow-wrap:anywhere}.sd-nrow input{width:100%;height:36px;margin:8px 0 8px;border:1px solid var(--edge);border-radius:8px;background:var(--raise);color:inherit;padding:0 8px;font:inherit}' +
+    '.sd-nact{display:flex;gap:8px}.sd-nact .sd-btn{height:30px;padding:0 8px;font-size:13px}' +
     '.sd-nlist .sd-nfoot{border-top:1px solid var(--line);margin-top:4px}' +
     'body{margin:0}' +
     '@media (max-width:1280px){.sd-bar .sd-seg svg{display:none}}' +
-    '@media (max-width:900px){.sd-app,.sd-app.sd-nolist{grid-template-columns:minmax(0,1fr)}.sd-side{display:none}[data-sd=source]{display:none}.sd-stage{padding:16px}.sd-bar [data-sd=state-pick]{display:inline-flex}.sd-bar [data-sd=hide-list]{display:none}}'
+    '@media (max-width:900px){.sd-app,.sd-app.sd-nolist{grid-template-columns:minmax(0,1fr)}.sd-side{display:none}[data-sd=source]{display:none}.sd-stage{padding:16px}.sd-bar [data-sd=state-pick]{display:inline-flex}.sd-bar [data-sd=hide-list],.sd-bar .sd-title{display:none}.sd-bar .sd-homebar{display:grid}}'
 
   // Added to the frame's own page only: never part of a screen file or a match picture (render.mjs builds its own page).
   var PICK_CSS =
@@ -450,6 +454,15 @@
     var links = read.links
     var handled = false
     var parts = [hideBtn, title, status, linkWarn, statePick, seg, themeBtn]
+    // Below 900 px the side list (and its link home) is gone: the bar has the way back.
+    if (served) {
+      var homeBar = el('a', 'sd-homebar', ICON.back)
+      homeBar.href = '/'
+      homeBar.title = 'All screens'
+      homeBar.setAttribute('aria-label', 'All screens')
+      homeBar.setAttribute('data-sd', 'home-bar')
+      parts.unshift(homeBar)
+    }
     if (served) parts = parts.concat([el('span', 'sd-vr'), pickBtn, notesBtn])
     parts = parts.concat([el('span', 'sd-vr'), prevBtn, count, nextBtn, uiBtn])
     bar.append.apply(bar, parts)
@@ -488,7 +501,9 @@
     nlist.hidden = true
     var pickTag = tagged('span', 'sd-picktag', 'picktag', 'Click to add a note')
     pickTag.hidden = true
-    main.append(bar, stage, nlist)
+    var dock = el('div', 'sd-dock')
+    dock.appendChild(nlist)
+    main.append(bar, stage, dock)
     var keys = el('div', 'sd-keys', '<span><span class="sd-kbd">↑</span><span class="sd-kbd">↓</span>state</span><span><span class="sd-kbd">1</span><span class="sd-kbd">2</span><span class="sd-kbd">3</span>width</span><span><span class="sd-kbd">D</span>dark</span><span><span class="sd-kbd">L</span>list</span>' + (served ? '<span><span class="sd-kbd">P</span>pick</span>' : ''))
     side.append(head, find, list, foot, keys)
     app.append(side, main, pickTag)
@@ -743,7 +758,7 @@
         copyText('do my notes').then(function () { copy.textContent = 'Copied' }, function () { copy.textContent = 'Type: do my notes' })
       })
       t.append(words, copy)
-      app.appendChild(t)
+      dock.appendChild(t)
       root.setTimeout(function () { t.remove() }, 6000)
     }
     function openNoteBox(target) {
@@ -831,7 +846,7 @@
           },
         )
       })
-      app.appendChild(noteBox)
+      dock.appendChild(noteBox)
       input.focus()
     }
     function postNote(n) { return postJson('/__notes', n) }
@@ -861,8 +876,13 @@
       var f = frame.getBoundingClientRect()
       var r = hovered.getBoundingClientRect()
       pickTag.hidden = false
-      pickTag.style.left = Math.max(f.left + 4, f.left + r.left * scale) + 'px'
-      pickTag.style.top = Math.max(f.top + 4, f.top + r.top * scale - 24) + 'px'
+      var w = pickTag.offsetWidth
+      var box = { left: f.left + r.left * scale, right: f.left + r.right * scale, top: f.top + r.top * scale, bottom: f.top + r.bottom * scale }
+      var right = Math.min(f.right, stage.getBoundingClientRect().right)
+      // Beside the outlined element on its right; when there is no room, above it; else just under its top edge.
+      if (box.right + 8 + w <= right) { pickTag.style.left = box.right + 8 + 'px'; pickTag.style.top = Math.max(f.top + 4, box.top) + 'px'; return }
+      pickTag.style.left = Math.max(f.left + 4, Math.min(box.left, right - w - 4)) + 'px'
+      pickTag.style.top = (box.top - 26 >= f.top ? box.top - 26 : Math.min(box.bottom + 4, f.bottom - 26)) + 'px'
     }
     function markLinks(d, s, width) {
       var lost = []
@@ -1036,6 +1056,8 @@
     notesBtn.addEventListener('click', function () { toggleList() })
     frame.addEventListener('mouseleave', function () { pickTag.hidden = true })
     root.addEventListener('resize', fit)
+    // The dock and the banners change the stage's height.
+    if (root.ResizeObserver) new root.ResizeObserver(function () { fit() }).observe(stage)
     doc.addEventListener('keydown', onKey)
     root.addEventListener('hashchange', function () {
       if (handled) {

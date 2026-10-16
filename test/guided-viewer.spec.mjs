@@ -66,6 +66,9 @@ describe('note box', () => {
     await frame.locator('#one').click()
     expect(await text(pg, q('note-label'))).toBe('Note on: "Update details"')
     await pg.fill(q('note-input'), 'bigger please')
+    // The box takes its own row under the design, so it never covers the frame.
+    const stageBottom = await pg.locator('.sd-stage').evaluate((el) => el.getBoundingClientRect().bottom)
+    expect(await pg.locator('.sd-notebox').evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(stageBottom)
     await frame.locator('#two').click()
     expect(await text(pg, q('discard'))).toContain('Discard this note?')
     await pg.click(q('keep'))
@@ -113,6 +116,9 @@ describe('note box', () => {
     await pg.press(q('note-input'), 'Enter')
     await pg.locator(q('toast')).waitFor({ state: 'visible' })
     expect(await text(pg, q('toast'))).toContain('Note saved. When you are done, say do my notes in Claude Code.')
+    // Never over the design: the toast sits below the stage that holds the frame.
+    const stageBottom = await pg.locator('.sd-stage').evaluate((el) => el.getBoundingClientRect().bottom)
+    expect(await pg.locator(q('toast')).evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(stageBottom)
     expect(await pg.locator('.sd-notebox').count()).toBe(0)
     expect(readNotes(r, cfg).map((n) => [n.state, n.text, n.note])).toEqual([['a', 'Update details', 'bigger please']])
     await pg.click(q('toast-copy'))
@@ -135,6 +141,8 @@ describe('notes list', () => {
     const rows = pg.locator('[data-sd-note]')
     await rows.first().waitFor()
     expect(await rows.count()).toBe(2)
+    const stageBottom = await pg.locator('.sd-stage').evaluate((el) => el.getBoundingClientRect().bottom)
+    expect(await pg.locator(q('notes-list')).evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(stageBottom)
     expect(await rows.first().innerText()).toContain('"Update details"')
     expect(await rows.first().innerText()).toContain('Alpha')
     expect(await rows.first().innerText()).toContain('bigger')
@@ -186,6 +194,9 @@ describe('viewer states', () => {
     expect(await pg.locator('iframe.sd-frame').evaluate((f) => f.style.transform)).toBe('')
     expect(await text(pg, q('size'))).toBe('1440 px')
     await pg.setViewportSize({ width: 800, height: 700 })
+    // The side list is gone, so the bar has the way back to all screens.
+    expect(await pg.locator(q('home-bar')).isVisible()).toBe(true)
+    expect(await pg.getAttribute(q('home-bar'), 'href')).toBe('/')
     await pg.selectOption(q('state-pick'), 'c')
     await pg.waitForFunction(() => location.hash === '#c@1440')
   }, 30000)

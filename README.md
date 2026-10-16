@@ -97,7 +97,7 @@ The first time, log in to your app in that browser window. The login is saved in
 2. In the Copy tab, pick the screen (or **New screen**, for example `Checkout`) and type a name in **Name this view** (for example `Empty cart`). The state id is made from the name (`empty-cart`); **Change id** lets you type your own.
 3. Press **Copy state**. Or press **Ctrl+Shift+S** inside the app tab: focus stays in the app, so open menus and hover states survive.
 
-The Copy tab says when no app tab is open and turns the copy buttons off until one is. A field error shows under its field. After a copy, **Open in viewer** switches to the viewer tab at that state.
+The Copy tab says when no app tab is open and turns the copy buttons off until one is. A field error shows under its field. With more than 8 screens, **Find a screen** narrows the list; a name that matches none starts a new screen. After a copy, **Open in viewer** switches to the viewer tab at that state.
 
 Rules:
 
@@ -241,7 +241,7 @@ git clone https://github.com/huy-jack/html-design
 cd html-design
 npm install
 npx playwright install chromium
-npm test                                # 250 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
+npm test                                # 305 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
 claude --plugin-dir ./plugin            # use the local copy in Claude Code
 claude plugin validate ./plugin
 ```

@@ -80,12 +80,12 @@ const CHROME_CSS = `:root{${LIGHT}}@media (prefers-color-scheme:dark){:root:not(
 a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}:focus-visible{outline:2px solid var(--accent);outline-offset:2px}[hidden]{display:none !important}
 svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}.sp{flex:1}
-.kbd{font:500 12px/1.4 "Geist Mono",ui-monospace,monospace;color:var(--dim);border:1px solid var(--edge);border-radius:4px;padding:0 5px}
-.btn{height:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 14px;border-radius:8px;color:var(--ink);border:1px solid var(--edge);background:var(--raise);font:inherit;font-weight:500;cursor:pointer;white-space:nowrap}
-.btn:hover{background:var(--hover);text-decoration:none}.btn:disabled{opacity:.5;cursor:not-allowed}.btn.icon{width:36px;padding:0}
+.kbd{font:500 12px/1.4 "Geist Mono",ui-monospace,monospace;color:var(--dim);border:1px solid var(--edge);border-radius:4px;padding:0 4px}
+.btn{height:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;border-radius:8px;color:var(--ink);border:1px solid var(--edge);background:var(--raise);font:inherit;font-weight:500;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--hover);text-decoration:none}.btn:disabled{opacity:.5;cursor:not-allowed}.btn[aria-busy=true]:disabled{opacity:1;cursor:progress}.btn.icon{width:36px;padding:0}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.primary:hover{background:var(--accent-h);border-color:var(--accent-h)}.btn.primary:active{background:var(--accent-p)}
 .seg{display:inline-flex;padding:3px;background:var(--chrome);border:1px solid var(--edge);border-radius:8px;gap:2px}
-.seg>button{height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-radius:6px;color:var(--dim);font:inherit;font-size:13px;font-weight:500;background:none;border:0;cursor:pointer}
+.seg>button{height:28px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-radius:6px;color:var(--dim);font:inherit;font-size:13px;font-weight:500;background:none;border:0;cursor:pointer}
 .seg>button:hover{color:var(--ink);background:var(--hover)}.seg>button[aria-pressed=true]{background:var(--accent);color:#fff}
 .pill{display:inline-flex;align-items:center;gap:8px;min-width:0;color:var(--dim);font-size:13px;padding:0 12px;height:32px;border:1px solid var(--line);border-radius:999px;background:var(--raise);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}.dot.off{background:var(--mute)}
@@ -157,7 +157,7 @@ ${step('note', 3, '<b>Change it.</b> Open the screen here, press Pick, click any
 </ol>${openCopy}</section>`
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Screens</title>${UI_HEAD_JS}${FONT_LINK}<style>${CHROME_CSS}
 .crumb{display:flex;align-items:center;gap:8px;color:var(--dim);white-space:nowrap}.crumb b{color:var(--ink);font-weight:600}
-.search{position:relative;width:280px;flex:none}.search svg{position:absolute;left:11px;top:11px;color:var(--mute)}.search .field{padding-left:34px;padding-right:34px}.search .kbd{position:absolute;right:9px;top:9px}
+.search{position:relative;width:280px;flex:none}.search svg{position:absolute;left:12px;top:11px;color:var(--mute)}.search .field{padding-left:36px;padding-right:36px}.search .kbd{position:absolute;right:9px;top:9px}
 .wrap{max-width:1600px;margin:0 auto;padding:32px 32px 48px}.head{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 h1{font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}.sub{color:var(--dim);margin-top:4px}.explain{color:var(--mute);font-size:13px}
 .strip{list-style:none;display:flex;flex-wrap:wrap;gap:8px 28px;padding:12px 16px;margin:0 0 28px;border:1px solid var(--line);border-radius:12px;background:var(--chrome);color:var(--dim);font-size:13px}
@@ -168,12 +168,12 @@ h1{font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}.sub{co
 .th{display:block;aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line);position:relative;transition:transform .15s,box-shadow .15s}
 .th iframe{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;transform-origin:0 0;transform:scale(var(--k,.16));pointer-events:none;background:#fff}
 a.th:hover{transform:translateY(-2px);box-shadow:0 10px 24px -10px rgba(0,0,0,.35)}.card.new .th{box-shadow:0 0 0 3px var(--accent)}
-.th.bad{background:var(--bad-bg);border-color:var(--bad);color:var(--ink);padding:14px;font-size:13px;overflow:auto}.th.bad p{margin-bottom:6px}.th.bad summary{color:var(--dim);cursor:pointer;font-size:12px}.th.bad .mono{font-size:12px;color:var(--dim);word-break:break-word}
+.th.bad{background:var(--bad-bg);border-color:var(--bad);color:var(--ink);padding:12px;font-size:13px;overflow:auto}.th.bad p{margin-bottom:8px}.th.bad summary{color:var(--dim);cursor:pointer;font-size:12px}.th.bad .mono{font-size:12px;color:var(--dim);word-break:break-word}
 .nm{display:flex;align-items:center;gap:8px;margin-top:12px;min-width:0}.nm>a{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .newtag{flex:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;line-height:20px;padding:0 8px;border-radius:999px}
-.mt{color:var(--dim);font-size:13px;margin-top:2px;display:flex;gap:6px}
+.mt{color:var(--dim);font-size:13px;margin-top:2px;display:flex;gap:8px}
 .badge{margin-left:auto;flex:none;font-size:12px;font-weight:500;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 8px}
-.hits{margin-top:8px;display:grid;gap:4px}.hits a{display:block;padding:4px 10px;border-radius:8px;font-size:13px;background:var(--chrome);border:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.more{font-size:12px;color:var(--dim);padding:0 10px}
+.hits{margin-top:8px;display:grid;gap:4px}.hits a{display:block;padding:4px 8px;border-radius:8px;font-size:13px;background:var(--chrome);border:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.more{font-size:12px;color:var(--dim);padding:0 8px}
 .none{padding:48px 0;text-align:center;color:var(--dim);display:grid;justify-items:center;gap:12px}
 .first{max-width:640px;margin:8vh auto 0;padding:32px;border:1px solid var(--line);border-radius:12px;background:var(--chrome)}.lead{color:var(--dim);margin:4px 0 24px}
 .steps{list-style:none;padding:0;margin:0 0 28px;display:grid;gap:16px}.steps li{align-items:flex-start;gap:12px;line-height:1.5}.steps li>div{flex:1}.steps .num{margin-top:-1px}
@@ -226,7 +226,7 @@ function filter() {
     c.hidden = !on
     if (on) { shown += 1; hits += k }
   }, grid)
-  $('count').textContent = !v ? plural(cards, 'screen') + ' · ' + plural(states, 'state') : hits ? plural(hits, 'state') + ' in ' + plural(shown, 'screen') : plural(shown, 'screen')
+  $('count').textContent = !v ? plural(cards, 'screen') + ' · ' + plural(states, 'state') : !shown ? 'No match' : hits ? plural(hits, 'state') + ' in ' + plural(shown, 'screen') : plural(shown, 'screen')
   $('none').hidden = shown > 0
   $('noneText').textContent = 'No screen matches "' + q.value.trim() + '"'
 }
@@ -331,23 +331,23 @@ h1{font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}.lead{c
 .notice{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--warn-edge);background:var(--warn-bg);border-radius:12px;padding:16px;line-height:1.5}.notice svg{color:var(--warn);width:20px;height:20px;margin-top:1px}
 .tabrow{display:flex;align-items:center;gap:12px}.fav{width:32px;height:32px;border-radius:8px;border:1px solid var(--edge);display:grid;place-items:center;color:var(--dim);flex:none}
 .tt{flex:1;min-width:0;line-height:1.35}.tt b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tt span{display:block;color:var(--dim);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#tabPick{margin-top:12px}.wrow{margin-top:14px}.wrow .lab{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
-label{display:block;font-size:13px;font-weight:500;margin:20px 0 6px}
-.hint{color:var(--dim);font-size:13px;margin-top:6px}.err{display:flex;gap:6px;align-items:center;color:var(--bad);font-size:13px;font-weight:500;margin-top:6px}
+#tabPick{margin-top:12px}.find{margin-bottom:8px}.wrow{margin-top:12px}.wrow .lab{display:block;font-size:13px;font-weight:500;margin-bottom:8px}
+label{display:block;font-size:13px;font-weight:500;margin:20px 0 8px}
+.hint{color:var(--dim);font-size:13px;margin-top:8px}.err{display:flex;gap:8px;align-items:center;color:var(--bad);font-size:13px;font-weight:500;margin-top:8px}
 .idline{font-size:13px;color:var(--dim);margin-top:4px}.idline code{font:500 13px "Geist Mono",ui-monospace,monospace;color:var(--ink)}
 .linkbtn{background:none;border:0;padding:0;color:var(--link);font:inherit;cursor:pointer;text-decoration:underline}
-.go{width:100%;height:44px;margin-top:24px;font-size:15px}.keyhint{text-align:center;color:var(--dim);font-size:13px;margin-top:8px}
+.go{width:100%;height:44px;margin-top:24px;font-size:16px;font-weight:600}.keyhint{text-align:center;color:var(--dim);font-size:13px;margin-top:8px}
 .alt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-.why{display:flex;gap:6px;align-items:center;justify-content:center;color:var(--warn);font-size:13px;font-weight:500;margin-top:10px}
-.tips{margin-top:16px;padding-left:18px;color:var(--dim);font-size:13px;display:grid;gap:4px}
-.later{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:10px 12px 10px 16px;border-radius:12px;background:var(--sel);color:var(--sel-ink);font-weight:500}
-#msg{margin-top:12px;min-height:21px}#msg.err{color:var(--bad)}#msg.ok{color:var(--ok)}#msg a{font-weight:600;color:var(--link)}
-#tabs{margin-top:8px;display:grid;gap:6px}#tabs button{justify-content:flex-start}
+.why{display:flex;gap:8px;align-items:center;justify-content:center;color:var(--warn);font-size:13px;font-weight:500;margin-top:8px}
+.tips{margin-top:16px;padding-left:16px;color:var(--dim);font-size:13px;display:grid;gap:4px}
+.later{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:8px 12px 8px 16px;border-radius:12px;background:var(--sel);color:var(--sel-ink);font-weight:500}
+#msg{margin-top:12px}#msg:empty,#tabs:empty{display:none}#msg.err{color:var(--bad)}#msg.ok{color:var(--ok)}#msg a{font-weight:600;color:var(--link)}
+#tabs{margin-top:8px;display:grid;gap:8px}#tabs button{justify-content:flex-start}
 .rec{margin-top:28px;border-top:1px solid var(--line);padding-top:20px}.rec h2{font-size:16px;font-weight:600;margin-bottom:8px}
 .it{display:flex;align-items:center;gap:12px;padding:8px;margin:0 -8px;border-radius:8px;color:var(--ink)}.it:hover{background:var(--hover);text-decoration:none}
 .it .th{width:56px;height:35px;border-radius:6px;overflow:hidden;border:1px solid var(--line);position:relative;background:#fff;flex:none}
 .it .th iframe{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;transform:scale(.0389);transform-origin:0 0;pointer-events:none}
-.it .time{color:var(--dim);font-size:13px}.empty{color:var(--dim);font-size:13px;padding:6px 0}
+.it .time{color:var(--dim);font-size:13px}.empty{color:var(--dim);font-size:13px;padding:8px 0}
 </style></head><body>
 <header class="top"><a class="btn" href="/" target="_blank" data-focus="/">${ICONS.back}Screens</a><b>Copy tab</b><div class="sp"></div><span id="live" class="pill"><span class="dot off"></span>Checking…</span><button type="button" class="btn icon" id="uiTheme"></button></header>
 <main class="col">
@@ -356,7 +356,7 @@ label{display:block;font-size:13px;font-weight:500;margin:20px 0 6px}
 <section id="tab" class="box"><div class="tabrow"><span class="fav">${ICONS.globe}</span><div class="tt"><b id="tabTitle">Looking for your app tab…</b><span id="tabUrl" class="mono"></span></div></div>
 <select id="tabPick" class="field" aria-label="App tab" hidden></select>
 <div class="wrow"><span class="lab">App width</span><div class="seg" id="widths" role="group" aria-label="App width">${widthBtns}</div></div></section>
-<label for="screen">Screen</label><select id="screen" class="field">${options}</select>
+<label for="screen">Screen</label><input id="screenFind" class="field find" placeholder="Find a screen" aria-label="Find a screen" autocomplete="off"${screens.length > 8 ? '' : ' hidden'}><select id="screen" class="field">${options}</select>
 <div id="newWrap" hidden><label for="newScreen">Screen name</label><input id="newScreen" class="field" autocomplete="off"><p class="hint">For example: Checkout</p></div>
 <p class="err" id="screenErr" role="alert" hidden></p>
 <label for="name">Name this view</label><input id="name" class="field" autocomplete="off" aria-describedby="nameHint">
@@ -385,7 +385,10 @@ var BUTTONS = ['copy', 'copyLater', 'copy3']
 var LABELS = {}
 BUTTONS.forEach(function (id) { LABELS[id] = $(id).innerHTML })
 // text: progress in the button with a spinner; null puts the label back.
-function label(id, text) { $(id).innerHTML = text == null ? LABELS[id] : '<span class="spin" aria-hidden="true"></span><span>' + esc(text) + '</span>' }
+function label(id, text) {
+  $(id).innerHTML = text == null ? LABELS[id] : '<span class="spin" aria-hidden="true"></span><span>' + esc(text) + '</span>'
+  if (text == null) $(id).removeAttribute('aria-busy'); else $(id).setAttribute('aria-busy', 'true')
+}
 function msg(html, kind) { $('msg').innerHTML = html; $('msg').className = kind || '' }
 function say(text, kind) { msg(esc(text), kind) }
 function fieldError(which, text) {
@@ -399,6 +402,19 @@ function showNew() { $('newWrap').hidden = $('screen').value !== '__new' }
 $('screen').onchange = function () { showNew(); fieldError('screen', '') }
 $('newScreen').addEventListener('input', function () { fieldError('screen', '') })
 showNew()
+// Many screens: the typed text narrows the list and picks the first match; no match means a new screen.
+$('screenFind').addEventListener('input', function () {
+  var v = $('screenFind').value.trim().toLowerCase(), first = null
+  Array.prototype.forEach.call($('screen').options, function (o) {
+    if (o.value === '__new') return
+    o.hidden = !!v && o.value.indexOf(v) === -1 && o.value.indexOf(slug(v)) === -1
+    if (!o.hidden && !first) first = o.value
+  })
+  $('screen').value = first && v ? first : v ? '__new' : $('screen').value
+  if (!first && v) $('newScreen').value = $('screenFind').value.trim()
+  showNew()
+  fieldError('screen', '')
+})
 function postJson(path, body) {
   return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function (r) { return r.json().catch(function () { return {} }).then(function (j) { return { status: r.status, body: j } }) })
@@ -485,6 +501,7 @@ function names() {
 }
 // Checked when Copy is pressed, never while typing. The first bad field gets the focus.
 function check(n) {
+  say('')
   fieldError('screen', '')
   fieldError('name', '')
   if (!n.screen || !slug(n.screen)) fieldError('screen', 'Give the screen a name')

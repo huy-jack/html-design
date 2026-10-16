@@ -74,6 +74,7 @@ describe('home page in a browser', () => {
     await pg.goto(v.url + '/')
     await pg.fill('#q', 'zz')
     expect(await text(pg, '#none')).toContain('No screen matches "zz"')
+    expect(await text(pg, '#count')).toBe('No match')
     await pg.click('#clear-search')
     expect(await pg.inputValue('#q')).toBe('')
     expect(await text(pg, '#count')).toBe('1 screen · 1 state')
@@ -188,12 +189,17 @@ describe('Copy tab in a browser', () => {
     expect(await pg.inputValue('#state')).toBe('my-id')
   }, 30000)
 
-  it('Copy with no name: the error sits under the field, the field is marked, nothing is sent', async () => {
+  it('Copy with no name: the error sits under the field, the field is marked, nothing is sent, the last result goes', async () => {
     const { pg, sent } = await copyTab([tab('app')], { __copy: [201, { saved: 'x', images: 0, warnings: [] }] })
+    await pg.fill('#name', 'First')
+    await pg.click('#copy')
+    await pg.waitForFunction(() => /^Saved/.test(document.getElementById('msg').innerText))
+    await pg.fill('#name', '')
     await pg.click('#copy')
     expect(await text(pg, '#nameErr')).toBe('Give this view a name')
     expect(await pg.getAttribute('#name', 'aria-invalid')).toBe('true')
-    expect(sent).toEqual([])
+    expect(await pg.locator('#msg').textContent()).toBe('')
+    expect(sent).toHaveLength(1)
   }, 30000)
 
   it('no app tab: a notice card in place of the tab card, the 3 copy buttons off with the reason', async () => {
@@ -226,6 +232,23 @@ describe('Copy tab in a browser', () => {
     await pg.waitForFunction(() => /Copy cancelled/.test(document.getElementById('msg').innerText))
     expect(sent.map((x) => x.p)).toContain('__cancel')
     expect(await pg.locator('#later').isHidden()).toBe(true)
+  }, 30000)
+
+  it('with many screens, Find a screen narrows the list and picks the first match; no match starts a new screen with that name', async () => {
+    const { r, cfg } = project()
+    for (const n of ['alpha', 'beta', 'cart', 'checkout', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'payment']) writeFileSync(join(r, `design/screens/${n}.html`), screen(n, [['a', 'A']]))
+    const v = await viewer({ root: r, cfg, browser: stubBrowser([tab('app')]) })
+    const pg = await newPage()
+    await pg.goto(v.url + '/__copy')
+    await pg.fill('#screenFind', 'pay')
+    expect(await pg.inputValue('#screen')).toBe('payment')
+    expect(await pg.locator('#screen option:not([hidden])').count()).toBe(2)
+    await pg.fill('#screenFind', 'Order history')
+    expect(await pg.inputValue('#screen')).toBe('__new')
+    expect(await pg.inputValue('#newScreen')).toBe('Order history')
+    const few = await viewer({ root: project().r, cfg, browser: stubBrowser([tab('app')]) })
+    await pg.goto(few.url + '/__copy')
+    expect(await pg.locator('#screenFind').isHidden()).toBe(true)
   }, 30000)
 
   it('Copy at 3 widths shows the width it is on in its button', async () => {
