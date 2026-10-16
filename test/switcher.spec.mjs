@@ -210,7 +210,7 @@ describe('writeSwitcher', () => {
   })
   it('the template keeps no dead badge element or style', () => {
     const t = readFileSync(join(import.meta.dirname, '..', 'plugin', 'templates', 'switcher.js'), 'utf8')
-    expect(t).not.toMatch(/sd-badge|var badge\b|proposed/i)
+    expect(t).not.toMatch(/sd-badge|var badge\b/i)
   })
   it('parseHash defaults to the first configured width', () => {
     const d = mkdtempSync(join(tmpdir(), 'w-'))

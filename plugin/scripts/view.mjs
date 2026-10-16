@@ -113,133 +113,26 @@ const AGO_JS = `function ago(t){var s=(Date.now()-t)/1000;if(s<60)return 'just n
 const UI_HEAD_JS = `<script>try{var t=localStorage.getItem('hd-ui');if(t)document.documentElement.setAttribute('data-ui',t)}catch(e){}</script>`
 // The tool theme button (#uiTheme), and links between the plugin's tabs. In the session browser (it has the
 // chord binding) a data-focus link switches to the open tab through the server; else it is a plain link.
-const PAGE_JS = `function uiDark(){var t=document.documentElement.getAttribute('data-ui');return t?t==='dark':!!(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)}
+const THEME_JS = `function uiDark(){var t=document.documentElement.getAttribute('data-ui');return t?t==='dark':!!(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)}
 function uiShow(){var b=document.getElementById('uiTheme');if(!b)return;var d=uiDark();b.innerHTML=d?${JSON.stringify(ICONS.sun)}:${JSON.stringify(ICONS.moon)};b.title='Tool colors (not your design)';b.setAttribute('aria-label',b.title)}
 uiShow()
 document.addEventListener('click',function(e){
   var b=e.target.closest&&e.target.closest('#uiTheme')
-  if(b){var t=uiDark()?'light':'dark';document.documentElement.setAttribute('data-ui',t);try{localStorage.setItem('hd-ui',t)}catch(x){}uiShow();return}
+  if(b){var t=uiDark()?'light':'dark';document.documentElement.setAttribute('data-ui',t);try{localStorage.setItem('hd-ui',t)}catch(x){}uiShow()}
+})`
+const FOCUS_JS = `document.addEventListener('click',function(e){
   var a=e.target.closest&&e.target.closest('a[data-focus]')
   if(!a||!window.__hdCopy||e.metaKey||e.ctrlKey||e.shiftKey||e.button)return
   e.preventDefault()
   fetch('/__focus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:a.getAttribute('data-focus')})}).then(function(r){if(!r.ok)throw new Error('no')}).catch(function(){location.href=a.href})
 })`
+const PAGE_JS = THEME_JS + '\n' + FOCUS_JS
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 const exampleAddress = (url) => (url ? String(url).replace(/^https?:\/\//, '').replace(/\/$/, '') : 'localhost:5173')
 
-// The home page: what the next step is (3 steps), every screen as a card, search over screens and states.
-// The part inside <main> is also what a live update reads back (GET / again), so there is one renderer.
-export function homePage(screens, { project = '', style = '', appUrl = null } = {}) {
-  const total = screens.reduce((n, s) => n + (s.states || 0), 0)
-  const cards = screens
-    .map((s) => {
-      const name = s.file.replace(/\.html$/, '')
-      const rev = `${s.mtime ?? 0}-${s.notes ?? 0}-${s.error ? 'x' : ''}`
-      if (s.error) return `<div class="card" data-name="${esc(name)}" data-search="${esc(name.toLowerCase())}" data-mtime="0" data-states="0" data-rev="${esc(rev)}"><div class="th bad"><p>This file could not be read. In Claude Code, say: check ${esc(name)}.</p><details><summary>Details</summary><p class="mono">${esc(s.error)}</p></details></div><div class="nm"><a href="/screens/${esc(s.file)}">${esc(name)}</a></div></div>`
-      const href = `/screens/${esc(s.file)}${s.first ? `#${esc(encodeURIComponent(s.first))}` : ''}`
-      const thumb = s.first ? `<iframe src="/__state/${esc(name)}/${esc(encodeURIComponent(s.first))}" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" title=""></iframe>` : ''
-      const notes = s.notes ? `<span class="badge">${plural(s.notes, 'note')}</span>` : ''
-      const search = [name, ...(s.labels ?? [])].join(' ').toLowerCase()
-      const hits = (s.list ?? []).map((x) => `<a href="/screens/${esc(s.file)}#${esc(encodeURIComponent(x.id))}" data-q="${esc([x.label, x.id].filter(Boolean).join(' ').toLowerCase())}" hidden>${esc(x.label || x.id)}</a>`).join('')
-      return `<div class="card" data-name="${esc(name)}" data-search="${esc(search)}" data-mtime="${s.mtime ?? 0}" data-states="${s.states}" data-rev="${esc(rev)}"><a class="th" href="${href}" tabindex="-1" aria-hidden="true">${thumb}</a><div class="nm"><a href="${href}">${esc(name)}</a><span class="newtag" hidden>New</span>${notes}</div><div class="mt"><span>${plural(s.states, 'state')}</span><span>·</span><time data-mtime="${s.mtime ?? 0}"></time></div><div class="hits" hidden>${hits}<span class="more" hidden></span></div></div>`
-    })
-    .join('')
-  const openCopy = `<a class="btn primary" id="openCopy" href="/__copy" target="_blank" data-focus="/__copy">${ICONS.copy}Open Copy tab</a>`
-  const step = (key, n, html, extra = '') => `<li data-step="${key}" data-done="false"><span class="num">${n}</span><div>${html}</div><span class="done">${ICONS.check}Done</span>${extra}</li>`
-  const content = screens.length
-    ? `<div class="head"><div><h1>Screens</h1><p class="sub" id="count">${plural(screens.length, 'screen')} · ${plural(total, 'state')}</p><p class="explain">A screen holds several states: the same page with a menu open, empty, loading.</p></div><div class="sp"></div>
-<div class="seg" id="sort" role="group" aria-label="Sort"><button type="button" data-sort="recent" aria-pressed="true">Recent</button><button type="button" data-sort="name" aria-pressed="false">A–Z</button><button type="button" data-sort="states" aria-pressed="false">Most states</button></div>${openCopy}</div>
-<ol class="strip" id="steps" aria-label="How it works">${step('copy', 1, 'Copy a screen')}${step('note', 2, 'Pick and write notes')}${step('say', 3, '<span class="saytext">In Claude Code say: <b>do my notes</b></span>', '<button type="button" class="btn" id="copyNotes" hidden>Copy "do my notes"</button>').replace('data-done="false">', 'data-done="false" data-next="false">')}</ol>
-<div class="grid" id="grid">${cards}</div><div class="none" id="none" hidden><p id="noneText">No screen matches</p><button type="button" class="btn" id="clear-search">Clear search</button></div>`
-    : `<section class="first"><h1>No screens yet</h1><p class="lead">Three steps to your first design change.</p><ol class="steps" id="steps">
-${step('app', 1, `<b>Open your app.</b> In this browser window, open your app in its own tab (for example ${esc(exampleAddress(appUrl))}).`)}
-${step('copy', 2, '<b>Copy a screen.</b> Go to the Copy tab, name what you see, press Copy state.')}
-${step('note', 3, '<b>Change it.</b> Open the screen here, press Pick, click any part and write a note. Then in Claude Code, say: do my notes.')}
-</ol>${openCopy}</section>`
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Screens</title>${UI_HEAD_JS}${FONT_LINK}<style>${CHROME_CSS}
-.crumb{display:flex;align-items:center;gap:8px;color:var(--dim);white-space:nowrap}.crumb b{color:var(--ink);font-weight:600}
-.search{position:relative;width:280px;flex:none}.search svg{position:absolute;left:12px;top:11px;color:var(--mute)}.search .field{padding-left:36px;padding-right:36px}.search .kbd{position:absolute;right:9px;top:9px}
-.wrap{max-width:1600px;margin:0 auto;padding:32px 32px 48px}.head{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-h1{font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}.sub{color:var(--dim);margin-top:4px}.explain{color:var(--mute);font-size:13px}
-.strip{list-style:none;display:flex;flex-wrap:wrap;gap:8px 28px;padding:12px 16px;margin:0 0 28px;border:1px solid var(--line);border-radius:12px;background:var(--chrome);color:var(--dim);font-size:13px}
-.strip li,.steps li{display:flex;align-items:center;gap:8px}.strip b{color:var(--ink)}
-.num{width:24px;height:24px;border-radius:50%;border:1px solid var(--edge);display:inline-grid;place-items:center;font-size:12px;font-weight:600;color:var(--dim);flex:none}
-.done{display:none;align-items:center;gap:4px;color:var(--ok);font-size:12px;font-weight:600}[data-done=true] .done{display:inline-flex}[data-done=true] .num{border-color:var(--ok);color:var(--ok)}
-[data-next=true] .num{background:var(--accent);border-color:var(--accent);color:#fff}[data-next=true] .saytext{color:var(--ink);font-weight:500}#copyNotes{height:28px;padding:0 12px;font-size:13px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:28px 24px}.card{min-width:0}
-.th{display:block;aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line);position:relative;transition:transform .15s,box-shadow .15s}
-.th iframe{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;transform-origin:0 0;transform:scale(var(--k,.16));pointer-events:none;background:#fff}
-a.th:hover{transform:translateY(-2px);box-shadow:0 10px 24px -10px rgba(0,0,0,.35)}.card.new .th{box-shadow:0 0 0 3px var(--accent)}
-.th.bad{background:var(--bad-bg);border-color:var(--bad);color:var(--ink);padding:12px;font-size:13px;overflow:auto}.th.bad p{margin-bottom:8px}.th.bad summary{color:var(--dim);cursor:pointer;font-size:12px}.th.bad .mono{font-size:12px;color:var(--dim);word-break:break-word}
-.nm{display:flex;align-items:center;gap:8px;margin-top:12px;min-width:0}.nm>a{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.newtag{flex:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;line-height:20px;padding:0 8px;border-radius:999px}
-.mt{color:var(--dim);font-size:13px;margin-top:2px;display:flex;gap:8px}
-.badge{margin-left:auto;flex:none;font-size:12px;font-weight:500;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 8px}
-.hits{margin-top:8px;display:grid;gap:4px}.hits a{display:block;padding:4px 8px;border-radius:8px;font-size:13px;background:var(--chrome);border:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.more{font-size:12px;color:var(--dim);padding:0 8px}
-.none{padding:48px 0;text-align:center;color:var(--dim);display:grid;justify-items:center;gap:12px}
-.first{max-width:640px;margin:8vh auto 0;padding:32px;border:1px solid var(--line);border-radius:12px;background:var(--chrome)}.lead{color:var(--dim);margin:4px 0 24px}
-.steps{list-style:none;padding:0;margin:0 0 28px;display:grid;gap:16px}.steps li{align-items:flex-start;gap:12px;line-height:1.5}.steps li>div{flex:1}.steps .num{margin-top:-1px}
-@media (max-width:860px){.crumb span{display:none}.search{flex:1;width:auto}.wrap{padding:20px 16px}}
-</style></head><body>
-<header class="top"><span class="mark"></span><div class="crumb"><span>html-design</span><span>/</span><b>${esc(project)}</b></div><div class="sp"></div>
-<div class="pill" id="pill"${style ? ` title="Style: ${esc(STYLE_NAMES[style] ?? style)}"` : ''}><span class="dot"></span>Live</div>
-<label class="search">${ICONS.search}<input id="q" class="field" placeholder="Search screens and states" aria-label="Search screens and states"><span class="kbd">/</span></label>
-<button type="button" class="btn icon" id="uiTheme"></button></header>
-<main class="wrap" id="main">${content}</main>
-<script>
-${AGO_JS}
-${PAGE_JS}
-var $ = function (id) { return document.getElementById(id) }
-var q = $('q')
-var each = function (sel, fn, root) { Array.prototype.forEach.call((root || document).querySelectorAll(sel), fn) }
-var plural = function (n, w) { return n + ' ' + w + (n === 1 ? '' : 's') }
-function fit() { each('.th', function (t) { t.style.setProperty('--k', t.clientWidth / 1440) }) }
-function times() { each('time[data-mtime]', function (t) { var m = Number(t.getAttribute('data-mtime')); t.textContent = m ? ago(m) : '' }) }
-var sortKey = 'recent'; try { sortKey = localStorage.getItem('hd-sort') || 'recent' } catch (e) {}
-// The order is CSS order, not a DOM move: moving a card would reload its preview. A new card goes first.
-function sortBy(k) {
-  sortKey = k
-  try { localStorage.setItem('hd-sort', k) } catch (e) {}
-  var grid = $('grid')
-  each('#sort button', function (b) { b.setAttribute('aria-pressed', String(b.dataset.sort === k)) })
-  if (!grid) return
-  var cards = Array.prototype.slice.call(grid.children)
-  cards.sort(function (a, b) {
-    if (k === 'name') return a.dataset.name.localeCompare(b.dataset.name)
-    if (k === 'states') return b.dataset.states - a.dataset.states
-    return b.dataset.mtime - a.dataset.mtime
-  })
-  cards.forEach(function (c, i) { c.style.order = c.classList.contains('new') ? -1 : i })
-}
-// Search: a card shows when its name or a state matches; up to 3 matching states are listed under it.
-function filter() {
-  var grid = $('grid')
-  if (!grid) return
-  var v = q.value.trim().toLowerCase(), shown = 0, hits = 0, states = 0, cards = 0
-  each('.card', function (c) {
-    cards += 1
-    states += Number(c.dataset.states) || 0
-    var k = 0
-    each('.hits a', function (a) { var on = !!v && a.dataset.q.indexOf(v) !== -1; if (on) k += 1; a.hidden = !on || k > 3 }, c)
-    var box = c.querySelector('.hits'), more = c.querySelector('.more')
-    if (box) box.hidden = !k
-    if (more) { more.hidden = k <= 3; more.textContent = '+' + (k - 3) + ' more' }
-    var on = !v || k > 0 || c.dataset.search.indexOf(v) !== -1
-    c.hidden = !on
-    if (on) { shown += 1; hits += k }
-  }, grid)
-  $('count').textContent = !v ? plural(cards, 'screen') + ' · ' + plural(states, 'state') : !shown ? 'No match' : hits ? plural(hits, 'state') + ' in ' + plural(shown, 'screen') : plural(shown, 'screen')
-  $('none').hidden = shown > 0
-  $('noneText').textContent = 'No screen matches "' + q.value.trim() + '"'
-}
-function firstMatch() {
-  var cards = Array.prototype.filter.call(document.querySelectorAll('#grid .card'), function (c) { return !c.hidden })
-  cards.sort(function (a, b) { return a.style.order - b.style.order })
-  if (!cards.length) return null
-  var hit = Array.prototype.filter.call(cards[0].querySelectorAll('.hits a'), function (a) { return !a.hidden })[0]
-  return (hit || cards[0].querySelector('.nm a')).getAttribute('href')
-}
-// Not named status: window.status is a built-in that turns any value into a string.
+// Home page parts that talk to the view server: the steps from /__status, live updates, the reload stream.
+// An exported site has no server, so it leaves them out.
+const HOME_STATUS_JS = `// Not named status: window.status is a built-in that turns any value into a string.
 var lastStatus = null
 function tick() {
   if (!lastStatus) return
@@ -253,8 +146,8 @@ function tick() {
   say.querySelector('.saytext').innerHTML = (next ? plural(lastStatus.notes, 'note') + ' waiting. ' : '') + 'In Claude Code say: <b>do my notes</b>'
   $('copyNotes').hidden = !next
 }
-function render() { times(); fit(); sortBy(sortKey); filter(); tick() }
-// New or changed screens: marked New for 3 s. Their previews load again after the CSS build (stale).
+`
+const HOME_LIVE_JS = `// New or changed screens: marked New for 3 s. Their previews load again after the CSS build (stale).
 var stale = []
 function markNew(c) {
   c.classList.add('new')
@@ -299,24 +192,8 @@ function poll() {
     if (s.screens !== document.querySelectorAll('#grid .card').length) refresh()
   }, function () { pill(false) })
 }
-document.addEventListener('click', function (e) {
-  var c = e.target.closest && e.target.closest('#copyNotes')
-  if (c && navigator.clipboard) navigator.clipboard.writeText('do my notes').then(function () { c.textContent = 'Copied'; setTimeout(function () { c.textContent = 'Copy "do my notes"' }, 1500) }, function () {})
-  var b = e.target.closest && e.target.closest('#sort button')
-  if (b) sortBy(b.dataset.sort)
-  if (e.target.closest && e.target.closest('#clear-search')) { q.value = ''; filter(); q.focus() }
-})
-q.oninput = filter
-q.addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') { var to = firstMatch(); if (to) location.href = to }
-})
-addEventListener('keydown', function (e) {
-  if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && document.activeElement !== q) { e.preventDefault(); q.focus() }
-  if (e.key === 'Escape' && document.activeElement === q) { q.value = ''; filter(); q.blur() }
-})
-addEventListener('resize', fit)
-render()
-poll(); setInterval(poll, 2000)
+`
+const HOME_START_JS = `poll(); setInterval(poll, 2000)
 try {
   var events = new EventSource('/__reload')
   events.addEventListener('change', refresh)
@@ -327,7 +204,155 @@ try {
     refresh()
   }
 } catch (e) {}
-</script></body></html>`
+`
+
+// The home page: what the next step is (3 steps), every screen as a card, search over screens and states.
+// The part inside <main> is also what a live update reads back (GET / again), so there is one renderer.
+// site: the same page for an exported site (export.mjs) on a static host: relative links, previews from
+// states/<screen>/<state>.html, a ticket filter and when it was made; no server calls and no designer tools.
+// site.base is the way from the page's folder to the site root ('' for index.html, '../' for screens/).
+export function homePage(screens, { project = '', style = '', appUrl = null, site = null } = {}) {
+  const total = screens.reduce((n, s) => n + (s.states || 0), 0)
+  const screenHref = (file) => (site ? 'screens/' : '/screens/') + esc(file)
+  const previewSrc = (name, id) => (site ? `states/${esc(name)}/${esc(encodeURIComponent(id))}.html` : `/__state/${esc(name)}/${esc(encodeURIComponent(id))}`)
+  const tickets = [...new Set(screens.flatMap((s) => (s.list ?? []).map((x) => x.proposed).filter(Boolean)))].sort()
+  const cards = screens
+    .map((s) => {
+      const name = s.file.replace(/\.html$/, '')
+      const rev = `${s.mtime ?? 0}-${s.notes ?? 0}-${s.error ? 'x' : ''}`
+      if (s.error) return `<div class="card" data-name="${esc(name)}" data-search="${esc(name.toLowerCase())}" data-mtime="0" data-states="0" data-rev="${esc(rev)}"><div class="th bad"><p>This file could not be read. In Claude Code, say: check ${esc(name)}.</p><details><summary>Details</summary><p class="mono">${esc(s.error)}</p></details></div><div class="nm"><a href="${screenHref(s.file)}">${esc(name)}</a></div></div>`
+      const href = `${screenHref(s.file)}${s.first ? `#${esc(encodeURIComponent(s.first))}` : ''}`
+      const thumb = s.first ? `<iframe src="${previewSrc(name, s.first)}" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" title=""></iframe>` : ''
+      const notes = s.notes ? `<span class="badge">${plural(s.notes, 'note')}</span>` : ''
+      const search = [name, ...(s.labels ?? [])].join(' ').toLowerCase()
+      const hits = (s.list ?? []).map((x) => `<a href="${screenHref(s.file)}#${esc(encodeURIComponent(x.id))}" data-q="${esc([x.label, x.id].filter(Boolean).join(' ').toLowerCase())}"${x.proposed ? ` data-t="${esc(x.proposed)}"` : ''} hidden>${esc(x.label || x.id)}</a>`).join('')
+      return `<div class="card" data-name="${esc(name)}" data-search="${esc(search)}" data-mtime="${s.mtime ?? 0}" data-states="${s.states}" data-rev="${esc(rev)}"><a class="th" href="${href}" tabindex="-1" aria-hidden="true">${thumb}</a><div class="nm"><a href="${href}">${esc(name)}</a><span class="newtag" hidden>New</span>${notes}</div><div class="mt"><span>${plural(s.states, 'state')}</span><span>·</span><time data-mtime="${s.mtime ?? 0}"></time></div><div class="hits" hidden>${hits}<span class="more" hidden></span></div></div>`
+    })
+    .join('')
+  const openCopy = `<a class="btn primary" id="openCopy" href="/__copy" target="_blank" data-focus="/__copy">${ICONS.copy}Open Copy tab</a>`
+  const step = (key, n, html, extra = '') => `<li data-step="${key}" data-done="false"><span class="num">${n}</span><div>${html}</div><span class="done">${ICONS.check}Done</span>${extra}</li>`
+  const ticketPick = tickets.length
+    ? `<select class="field" id="ticket" aria-label="Proposed for"><option value="">All states</option>${tickets.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>`
+    : ''
+  const made = site ? `<p class="explain">Updated <time data-updated="${Number(site.updated) || 0}"></time>${site.commit ? ` · <span class="mono">${esc(site.commit)}</span>` : ''}. A state marked Proposed is designed, not built yet.</p>` : ''
+  const steps = `<ol class="strip" id="steps" aria-label="How it works">${step('copy', 1, 'Copy a screen')}${step('note', 2, 'Pick and write notes')}${step('say', 3, '<span class="saytext">In Claude Code say: <b>do my notes</b></span>', '<button type="button" class="btn" id="copyNotes" hidden>Copy "do my notes"</button>').replace('data-done="false">', 'data-done="false" data-next="false">')}</ol>`
+  const content = screens.length
+    ? `<div class="head"><div><h1>Screens</h1><p class="sub" id="count">${plural(screens.length, 'screen')} · ${plural(total, 'state')}</p><p class="explain">A screen holds several states: the same page with a menu open, empty, loading.</p>${made}</div><div class="sp"></div>
+${site ? ticketPick : ''}<div class="seg" id="sort" role="group" aria-label="Sort"><button type="button" data-sort="recent" aria-pressed="true">Recent</button><button type="button" data-sort="name" aria-pressed="false">A–Z</button><button type="button" data-sort="states" aria-pressed="false">Most states</button></div>${site ? '' : openCopy}</div>
+${site ? '' : steps}
+<div class="grid" id="grid">${cards}</div><div class="none" id="none" hidden><p id="noneText">No screen matches</p><button type="button" class="btn" id="clear-search">Clear search</button></div>`
+    : `<section class="first"><h1>No screens yet</h1><p class="lead">Three steps to your first design change.</p><ol class="steps" id="steps">
+${step('app', 1, `<b>Open your app.</b> In this browser window, open your app in its own tab (for example ${esc(exampleAddress(appUrl))}).`)}
+${step('copy', 2, '<b>Copy a screen.</b> Go to the Copy tab, name what you see, press Copy state.')}
+${step('note', 3, '<b>Change it.</b> Open the screen here, press Pick, click any part and write a note. Then in Claude Code, say: do my notes.')}
+</ol>${openCopy}</section>`
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${site?.base ? `<base href="${esc(site.base)}">` : ''}<title>Screens</title>${UI_HEAD_JS}${FONT_LINK}<style>${CHROME_CSS}
+.crumb{display:flex;align-items:center;gap:8px;color:var(--dim);white-space:nowrap}.crumb b{color:var(--ink);font-weight:600}
+#ticket{width:auto;min-width:160px}.search{position:relative;width:280px;flex:none}.search svg{position:absolute;left:12px;top:11px;color:var(--mute)}.search .field{padding-left:36px;padding-right:36px}.search .kbd{position:absolute;right:9px;top:9px}
+.wrap{max-width:1600px;margin:0 auto;padding:32px 32px 48px}.head{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+h1{font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}.sub{color:var(--dim);margin-top:4px}.explain{color:var(--mute);font-size:13px}
+.strip{list-style:none;display:flex;flex-wrap:wrap;gap:8px 28px;padding:12px 16px;margin:0 0 28px;border:1px solid var(--line);border-radius:12px;background:var(--chrome);color:var(--dim);font-size:13px}
+.strip li,.steps li{display:flex;align-items:center;gap:8px}.strip b{color:var(--ink)}
+.num{width:24px;height:24px;border-radius:50%;border:1px solid var(--edge);display:inline-grid;place-items:center;font-size:12px;font-weight:600;color:var(--dim);flex:none}
+.done{display:none;align-items:center;gap:4px;color:var(--ok);font-size:12px;font-weight:600}[data-done=true] .done{display:inline-flex}[data-done=true] .num{border-color:var(--ok);color:var(--ok)}
+[data-next=true] .num{background:var(--accent);border-color:var(--accent);color:#fff}[data-next=true] .saytext{color:var(--ink);font-weight:500}#copyNotes{height:28px;padding:0 12px;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:28px 24px}.card{min-width:0}
+.th{display:block;aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line);position:relative;transition:transform .15s,box-shadow .15s}
+.th iframe{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;transform-origin:0 0;transform:scale(var(--k,.16));pointer-events:none;background:#fff}
+a.th:hover{transform:translateY(-2px);box-shadow:0 10px 24px -10px rgba(0,0,0,.35)}.card.new .th{box-shadow:0 0 0 3px var(--accent)}
+.th.bad{background:var(--bad-bg);border-color:var(--bad);color:var(--ink);padding:12px;font-size:13px;overflow:auto}.th.bad p{margin-bottom:8px}.th.bad summary{color:var(--dim);cursor:pointer;font-size:12px}.th.bad .mono{font-size:12px;color:var(--dim);word-break:break-word}
+.nm{display:flex;align-items:center;gap:8px;margin-top:12px;min-width:0}.nm>a{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.newtag{flex:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;line-height:20px;padding:0 8px;border-radius:999px}
+.mt{color:var(--dim);font-size:13px;margin-top:2px;display:flex;gap:8px}
+.badge{margin-left:auto;flex:none;font-size:12px;font-weight:500;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 8px}
+.hits{margin-top:8px;display:grid;gap:4px}.hits a{display:block;padding:4px 8px;border-radius:8px;font-size:13px;background:var(--chrome);border:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.more{font-size:12px;color:var(--dim);padding:0 8px}
+.none{padding:48px 0;text-align:center;color:var(--dim);display:grid;justify-items:center;gap:12px}
+.first{max-width:640px;margin:8vh auto 0;padding:32px;border:1px solid var(--line);border-radius:12px;background:var(--chrome)}.lead{color:var(--dim);margin:4px 0 24px}
+.steps{list-style:none;padding:0;margin:0 0 28px;display:grid;gap:16px}.steps li{align-items:flex-start;gap:12px;line-height:1.5}.steps li>div{flex:1}.steps .num{margin-top:-1px}
+@media (max-width:860px){.crumb span{display:none}.search{flex:1;width:auto}.wrap{padding:20px 16px}}
+</style></head><body>
+<header class="top"><span class="mark"></span><div class="crumb"><span>html-design</span><span>/</span><b>${esc(project)}</b></div><div class="sp"></div>
+${site ? '' : `<div class="pill" id="pill"${style ? ` title="Style: ${esc(STYLE_NAMES[style] ?? style)}"` : ''}><span class="dot"></span>Live</div>`}
+<label class="search">${ICONS.search}<input id="q" class="field" placeholder="Search screens and states" aria-label="Search screens and states"><span class="kbd">/</span></label>
+<button type="button" class="btn icon" id="uiTheme"></button></header>
+<main class="wrap" id="main">${content}</main>
+<script>
+${AGO_JS}
+${site ? THEME_JS : PAGE_JS}
+var $ = function (id) { return document.getElementById(id) }
+var q = $('q'), tk = $('ticket')
+var each = function (sel, fn, root) { Array.prototype.forEach.call((root || document).querySelectorAll(sel), fn) }
+var plural = function (n, w) { return n + ' ' + w + (n === 1 ? '' : 's') }
+function fit() { each('.th', function (t) { t.style.setProperty('--k', t.clientWidth / 1440) }) }
+function times() {
+  each('time[data-mtime]', function (t) { var m = Number(t.getAttribute('data-mtime')); t.textContent = m ? ago(m) : '' })
+  each('time[data-updated]', function (t) { var m = Number(t.getAttribute('data-updated')); t.textContent = m ? new Date(m).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '' })
+}
+var sortKey = 'recent'; try { sortKey = localStorage.getItem('hd-sort') || 'recent' } catch (e) {}
+// The order is CSS order, not a DOM move: moving a card would reload its preview. A new card goes first.
+function sortBy(k) {
+  sortKey = k
+  try { localStorage.setItem('hd-sort', k) } catch (e) {}
+  var grid = $('grid')
+  each('#sort button', function (b) { b.setAttribute('aria-pressed', String(b.dataset.sort === k)) })
+  if (!grid) return
+  var cards = Array.prototype.slice.call(grid.children)
+  cards.sort(function (a, b) {
+    if (k === 'name') return a.dataset.name.localeCompare(b.dataset.name)
+    if (k === 'states') return b.dataset.states - a.dataset.states
+    return b.dataset.mtime - a.dataset.mtime
+  })
+  cards.forEach(function (c, i) { c.style.order = c.classList.contains('new') ? -1 : i })
+}
+// Search: a card shows when its name or a state matches; up to 3 matching states are listed under it.
+// The ticket filter (exported site) works the same way, on the states proposed for that ticket.
+function filter() {
+  var grid = $('grid')
+  if (!grid) return
+  var v = q.value.trim().toLowerCase(), t = tk ? tk.value : '', shown = 0, hits = 0, states = 0, cards = 0
+  each('.card', function (c) {
+    cards += 1
+    states += Number(c.dataset.states) || 0
+    var k = 0
+    each('.hits a', function (a) { var on = (!!v || !!t) && (!v || a.dataset.q.indexOf(v) !== -1) && (!t || a.dataset.t === t); if (on) k += 1; a.hidden = !on || k > 3 }, c)
+    var box = c.querySelector('.hits'), more = c.querySelector('.more')
+    if (box) box.hidden = !k
+    if (more) { more.hidden = k <= 3; more.textContent = '+' + (k - 3) + ' more' }
+    var on = (!v && !t) || k > 0 || (!t && c.dataset.search.indexOf(v) !== -1)
+    c.hidden = !on
+    if (on) { shown += 1; hits += k }
+  }, grid)
+  $('count').textContent = !v && !t ? plural(cards, 'screen') + ' · ' + plural(states, 'state') : !shown ? 'No match' : hits ? plural(hits, 'state') + ' in ' + plural(shown, 'screen') : plural(shown, 'screen')
+  $('none').hidden = shown > 0
+  $('noneText').textContent = v ? 'No screen matches "' + q.value.trim() + '"' + (t ? ' in ' + t : '') : 'No state is proposed for ' + t
+}
+function firstMatch() {
+  var cards = Array.prototype.filter.call(document.querySelectorAll('#grid .card'), function (c) { return !c.hidden })
+  cards.sort(function (a, b) { return a.style.order - b.style.order })
+  if (!cards.length) return null
+  var hit = Array.prototype.filter.call(cards[0].querySelectorAll('.hits a'), function (a) { return !a.hidden })[0]
+  return (hit || cards[0].querySelector('.nm a')).getAttribute('href')
+}
+${site ? 'function tick() {}\n' : HOME_STATUS_JS}function render() { times(); fit(); sortBy(sortKey); filter(); tick() }
+${site ? '' : HOME_LIVE_JS}document.addEventListener('click', function (e) {
+  var c = e.target.closest && e.target.closest('#copyNotes')
+  if (c && navigator.clipboard) navigator.clipboard.writeText('do my notes').then(function () { c.textContent = 'Copied'; setTimeout(function () { c.textContent = 'Copy "do my notes"' }, 1500) }, function () {})
+  var b = e.target.closest && e.target.closest('#sort button')
+  if (b) sortBy(b.dataset.sort)
+  if (e.target.closest && e.target.closest('#clear-search')) { q.value = ''; if (tk) tk.value = ''; filter(); q.focus() }
+})
+q.oninput = filter
+if (tk) tk.onchange = filter
+q.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { var to = firstMatch(); if (to) location.href = to }
+})
+addEventListener('keydown', function (e) {
+  if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && document.activeElement !== q) { e.preventDefault(); q.focus() }
+  if (e.key === 'Escape' && document.activeElement === q) { q.value = ''; filter(); q.blur() }
+})
+addEventListener('resize', fit)
+render()
+${site ? '' : HOME_START_JS}</script></body></html>`
 }
 
 // The Copy tab: not part of the app and not a design, so its script is inline. A guided form: a card says
@@ -758,20 +783,42 @@ function listScreens(dir, notes = []) {
 // A screen file is up to 25 MB: parse it once per change, not on every page load.
 const screenCache = new Map()
 function summarize(text) {
-  const states = parseScreen(text).states
-  return { states: states.length, first: states[0]?.id ?? null, labels: states.map((s) => s.attrs['data-label']).filter(Boolean), list: states.map((s) => ({ id: s.id, label: s.attrs['data-label'] ?? '' })) }
+  return summaryOf(parseScreen(text).states)
+}
+// What a home card shows of a screen. Also used by export.mjs.
+export function summaryOf(states) {
+  return {
+    states: states.length,
+    first: states[0]?.id ?? null,
+    labels: states.map((s) => s.attrs['data-label']).filter(Boolean),
+    list: states.map((s) => ({ id: s.id, label: s.attrs['data-label'] ?? '', proposed: s.attrs['data-proposed'] || null })),
+  }
 }
 
 // One state of a screen file, cut out as text (a full parse of a large file is slow): the opening tag's
-// attributes and the content. Attribute values are double-quoted and may hold ">".
-const TEMPLATE_RE = /<template\b((?:\s+[\w-]+(?:="[^"]*")?)*)\s*>([\s\S]*?)<\/template>/g
+// attributes and the content. Attribute values are quoted ("" or '', may hold ">") or bare.
+const TEMPLATE_RE = /<template\b((?:\s+[\w-]+(?:=(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*>([\s\S]*?)<\/template>/g
 const decodeAttr = (v) => v.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+const attrsOf = (m) => Object.fromEntries([...m[1].matchAll(/([\w-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g)].map((a) => [a[1], decodeAttr(a[2] ?? a[3] ?? a[4] ?? '')]))
 export function stateFromText(text, id) {
   for (const m of text.matchAll(TEMPLATE_RE)) {
-    const attrs = Object.fromEntries([...m[1].matchAll(/([\w-]+)(?:="([^"]*)")?/g)].map((a) => [a[1], decodeAttr(a[2] ?? '')]))
+    const attrs = attrsOf(m)
     if (attrs.id === id && !('data-variant-of' in attrs)) return { id, attrs, html: m[2].trim(), variants: [] }
   }
   return null
+}
+// Every state in one pass, with its width copies (export.mjs: a 16 MB file, 77 states, is read once).
+export function statesFromText(text) {
+  const states = []
+  const variants = []
+  for (const m of text.matchAll(TEMPLATE_RE)) {
+    const attrs = attrsOf(m)
+    if (!attrs.id) continue
+    if ('data-variant-of' in attrs) variants.push({ of: attrs['data-variant-of'], widths: String(attrs['data-widths'] ?? '').split(/\s+/).filter(Boolean).map(Number), html: m[2].trim() })
+    else states.push({ id: attrs.id, attrs, html: m[2].trim(), variants: [] })
+  }
+  for (const v of variants) states.find((s) => s.id === v.of)?.variants.push({ widths: v.widths, html: v.html })
+  return states
 }
 
 // browser: the session's app browser ({ appPages, copyFrom, resize, targetIdOf, badge, toast }), or null when no browser is open.

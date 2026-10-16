@@ -145,6 +145,7 @@ After each edit Claude runs `/html-design check`. Undo is your own git.
 | `/html-design status` | Running or not, port, screen count, open notes, style |
 | `/html-design tokens` | List the style, the class prefix and the tokens Claude may use |
 | `/html-design check` | Find raw colors, new styles, scripts, broken links |
+| `/html-design export <folder>` | Write the designs as a static site for reviewers (see below) |
 
 ## The viewer
 
@@ -159,6 +160,17 @@ After each edit Claude runs `/html-design check`. Undo is your own git.
 - The plugin's pages are light, or dark when your computer is set to dark. **Tool colors** (the sun or moon button on home and the Copy tab, the side panel footer in the viewer) switches the tool's own colors; **Design: Light | Dark** next to the widths switches the design.
 - In Pick mode the pink bar names what a click would note. The picked element keeps a solid outline and a numbered pin while you write; the note box names the element and its nearest heading. Pointing at a row in the notes list marks its element the same way.
 - The viewer loads the Geist font from Google Fonts. Offline, it uses the system font.
+
+## Share the designs as a static site
+
+`node <pluginRoot>/scripts/export.mjs --design design --out site [--app-url https://staging.example.com] [--name "My app"]` writes a folder that any static host serves as it is (S3, a plain web server). Reviewers who have no session, no checkout and no terminal open it in a browser.
+
+- `index.html` and `screens/index.html`: the home page, the same cards, previews, search and sort. Sort by recent uses each screen file's last commit. A **Proposed** filter lists every `data-proposed` value; choosing one shows only the states proposed for it. A line says when the site was made and from which commit.
+- `screens/*.html`: every screen with the full viewer: states, widths, design light and dark, links with their motion. With `--app-url`, **Open in app** opens the page a state was copied from on that address.
+- `states/<screen>/<state>.html`: one small page per state, for the previews (about 100 KB, where a screen file can be 16 MB).
+- Left out: Pick, notes, the Copy tab and every call to the session server. The site has the viewer of the plugin that exported it, with your widths and dark mode.
+
+It needs no browser and no npm packages, and takes about a second for 170 states. It stops, writing nothing, when the design folder has no screen files, when the output folder is not empty, or when a screen or state name could write outside the output folder. So a sync that deletes old files (`aws s3 sync site/ s3://<bucket> --delete`) never runs on an empty folder.
 
 ## Config: `design-mode.json`
 
@@ -192,6 +204,7 @@ Other hooks:
 
 - An element with the attribute `data-hd-tool` is left out of every copy. Put it on your own dev-only overlays.
 - Any `data-*` attribute you add on a state `<template>` is kept on every rewrite.
+- `data-proposed="<ticket>"` on a state `<template>` marks it designed, not built yet. The viewer shows **Proposed: <ticket>** above the design and a **Proposed** tag in the state list; an exported site's home page filters by it.
 - `node <pluginRoot>/scripts/build-css.mjs --screens <dir> --out <file>` builds CSS for another folder of screen files.
 
 While a session runs, any program on this computer, from any user account, can fully control the session browser through the automation port, including the sites you logged in to there. Web pages cannot reach it: Chromium refuses connections from other origins. Do not run a session on a shared computer.

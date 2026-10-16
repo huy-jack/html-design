@@ -25,7 +25,7 @@ describe('automation port', () => {
     stops.push(async () => { await s.close(); fx.close() })
     const info = JSON.parse(readFileSync(join(r, 'design/.local/session.json'), 'utf8'))
     expect(info.cdpPort).toBeGreaterThan(0)
-    expect(info.version).toBe('0.4.0')
+    expect(info.version).toBe(JSON.parse(readFileSync(join(import.meta.dirname, '..', 'plugin', '.claude-plugin', 'plugin.json'), 'utf8')).version)
     expect(existsSync(join(info.pluginRoot, 'scripts/build-css.mjs'))).toBe(true)
     await s.browser.appPages()[0].waitForLoadState('load')
     const remote = await chromium.connectOverCDP(`http://127.0.0.1:${info.cdpPort}`)
