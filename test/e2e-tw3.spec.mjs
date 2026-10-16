@@ -56,6 +56,6 @@ it('tw3 style: a screen-only class builds; the app sheet is rebuilt, not copied;
     return { mt: s.marginTop, bg: s.backgroundColor, border: s.borderTopColor }
   })
   expect(got).toEqual({ mt: '28px', bg: 'rgb(18, 52, 86)', border: 'rgb(255, 0, 0)' })
-  await view.click('.sd-bar button:not([data-sd]):not([data-width])')
+  await view.click('.sd-bar [data-theme="dark"]')
   await view.waitForFunction(() => getComputedStyle(document.querySelector('iframe.sd-frame')?.contentDocument?.getElementById('m') ?? document.body).color === 'rgb(18, 52, 86)', null, { timeout: 5000 })
 }, 120000)

@@ -94,18 +94,18 @@ The first time, log in to your app in that browser window. The login is saved in
 ### 2. Copy states
 
 1. In the app tab, go to a page and click until it shows the state you want (an open menu, an error, an empty list).
-2. In the Copy tab, pick the screen (or **New screen**, for example `Checkout`) and type a name in **Name this view** (for example `Empty cart`). The state id is made from the name (`empty-cart`); **Change id** lets you type your own.
+2. In the Copy tab, pick the screen in **Screen** (type to search; for a new one, type its name, for example `Checkout`, and pick **Create new screen**). Type a name in **Name this view** (for example `Empty cart`). The state id is made from the name (`empty-cart`); **Change id** lets you type your own. After a saved copy the name field is cleared for the next one.
 3. Press **Copy state**. Or press **Ctrl+Shift+S** inside the app tab: focus stays in the app, so open menus and hover states survive.
 
-The Copy tab says when no app tab is open and turns the copy buttons off until one is. A field error shows under its field. With more than 8 screens, **Find a screen** narrows the list; a name that matches none starts a new screen. After a copy, **Open in viewer** switches to the viewer tab at that state.
+The Copy tab says when no app tab is open and turns the copy buttons off until one is. A field error shows under its field. After a copy, **Open in viewer** switches to the viewer tab at that state.
 
 Rules:
 
 - A copy never resizes the app window, so open menus stay open. The first copy of a state is the base, stored at the set width nearest to the window (a note says so when the window is another width). Use the width buttons to set the window first.
-- The same state at the same width asks "Replace?".
+- The same state at the same width asks in the Copy tab: **Replace**, **Save as "<name> 2"**, or **Cancel**. Ctrl+Shift+S does not ask: it saves "<name> 2" (then 3, and so on) and the note in the app tab says so.
 - The same state at another width (use the width buttons) is stored as a width copy, but only if the page differs.
 - With 2 or more app tabs open, the Copy tab asks which tab.
-- To copy an open menu: press **Ctrl+Shift+S** in the app tab, or click **Copy in 5 s**, go to the app tab and open the menu. The copy is of the app tab you last clicked, typed or moved the pointer in during the wait. A small "Copy in 3" badge counts down in the app tab; it is never in the copy. The Copy tab counts down too and has **Cancel**. After Ctrl+Shift+S, a short note in the app tab says whether the copy was saved.
+- To copy an open menu: press **Ctrl+Shift+S** in the app tab, or click **Copy in 5 s**, go to the app tab and open the menu. The copy is of the app tab you last clicked, typed or moved the pointer in during the wait. A small "Copy in 3" badge counts down in the app tab; it is never in the copy. The Copy tab counts down too and has **Cancel**. After Ctrl+Shift+S, a short note in the app tab says whether the copy was saved. On a Mac the shortcut is Control+Shift+S, not Cmd.
 
 You can also ask Claude: "copy this as checkout empty".
 
@@ -150,13 +150,14 @@ After each edit Claude runs `/html-design check`. Undo is your own git.
 
 - **Home** (`http://127.0.0.1:<port>/`): every screen as a card with a live preview of its first state, its state count, open notes and last change. A new copy shows up by itself, marked **New**. Search with `/`: matching states are listed under each card, and Enter opens the first one. Sort by recent, name or state count. The pill says whether the session runs.
 - **A screen**: the states in a side list by group (filter at the top with a match count, open notes as a dot and a number, a link count). **Hide list** (L) gives the design the whole width; below 900 px the states are a drop-down. The design shows at its true width (1440 / 1024 / 375), scaled down to fit (**Fit**) or at **100%**, so the app's breakpoints see the real width. Above it: the size, the zoom, and the page it was copied from.
-- **Keys**: ↑ ↓ (or ← →) state, 1 2 3 width, D design dark, L list, P Pick, Esc stop.
+- **Keys**: ↑ ↓ (or ← →) state, 1 2 3 width, D design light/dark, L list, P Pick, Esc stop.
 - **Pick**: a bar says Pick is on; click an element and type a note. A note box with text never closes without asking, and stays open until the note is saved. After a save, the viewer says the next step: say "do my notes" in Claude Code. The notes button lists this screen's open notes, with Edit and Delete.
 - Linked buttons have a pointer. Click one to move to its state with its motion. Motion plays in Chrome 111+, Safari 18+ and Firefox 144+.
 - A card above the design shows a CSS build error (the raw output behind **Show details**). The last good CSS stays in use. A stopped session shows a grey bar with the start command.
 - A link to one state: `screens/<screen>.html#<state>@<width>`.
 - **Copy tab**: shows the app tab it will copy (pick one when several are open) and its width. **Copy state**, **Copy in 5 s**, or **Copy at 3 widths** (resizes the browser window and copies each width, so open menus close; it brings the app tab to the front, and a short note there says what was saved). **Recent** lists this session's copies with a preview; a click switches to the viewer tab.
-- The plugin's pages are light, or dark when your computer is set to dark. The sun or moon button switches the tool's own theme; the design's light or dark is a separate button.
+- The plugin's pages are light, or dark when your computer is set to dark. **Tool colors** (the sun or moon button on home and the Copy tab, the side panel footer in the viewer) switches the tool's own colors; **Design: Light | Dark** next to the widths switches the design.
+- In Pick mode the pink bar names what a click would note. The picked element keeps a solid outline and a numbered pin while you write; the note box names the element and its nearest heading. Pointing at a row in the notes list marks its element the same way.
 - The viewer loads the Geist font from Google Fonts. Offline, it uses the system font.
 
 ## Config: `design-mode.json`
@@ -241,7 +242,7 @@ git clone https://github.com/huy-jack/html-design
 cd html-design
 npm install
 npx playwright install chromium
-npm test                                # 305 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
+npm test                                # 313 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
 claude --plugin-dir ./plugin            # use the local copy in Claude Code
 claude plugin validate ./plugin
 ```

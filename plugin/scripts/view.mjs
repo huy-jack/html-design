@@ -353,7 +353,7 @@ label{display:block;font-size:13px;font-weight:500;margin:20px 0 8px}
 .linkbtn{background:none;border:0;padding:0;color:var(--link);font:inherit;cursor:pointer;text-decoration:underline}
 .go{width:100%;height:44px;margin-top:24px;font-size:16px;font-weight:600}.keyhint{text-align:center;color:var(--dim);font-size:13px;margin-top:8px}
 .ask{margin-top:12px;padding:16px;border:1px solid var(--edge);border-radius:12px;background:var(--chrome)}.ask p{font-weight:600;margin-bottom:12px}.askrow{display:flex;flex-wrap:wrap;gap:8px}
-.alt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.alt .btn{width:100%}.alt .hint{text-align:center}
+.alt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.alt .btn{width:100%}.alt .hint{grid-column:1 / -1;text-align:right;margin-top:0}
 .why{display:flex;gap:8px;align-items:center;justify-content:center;color:var(--warn);font-size:13px;font-weight:500;margin-top:8px}
 .later{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:8px 12px 8px 16px;border-radius:12px;background:var(--sel);color:var(--sel-ink);font-weight:500}
 #msg{margin-top:12px}#msg:empty,#tabs:empty{display:none}#msg.err{color:var(--bad)}#msg.ok{color:var(--ok)}#msg a{font-weight:600;color:var(--link)}
@@ -381,7 +381,7 @@ label{display:block;font-size:13px;font-weight:500;margin:20px 0 8px}
 <p class="why" id="why" hidden></p>
 <p class="keyhint" id="keyhint" hidden>Menu open in your app? Press Ctrl+Shift+S there, or use Copy in 5 s.</p>
 <div id="ask" class="ask" role="alertdialog" aria-labelledby="askText" hidden><p id="askText"></p><div class="askrow"><button type="button" id="askReplace" class="btn primary">Replace</button><button type="button" id="askNumber" class="btn"></button><button type="button" id="askCancel" class="btn">Cancel</button></div></div>
-<div class="alt"><div><button type="button" id="copyLater" class="btn" disabled>Copy in 5 s</button></div><div><button type="button" id="copy3" class="btn" disabled>Copy at ${widths.length} widths</button><p class="hint" id="copy3Hint">Resizes your app window, so open menus close.</p></div></div>
+<div class="alt"><button type="button" id="copyLater" class="btn" disabled>Copy in 5 s</button><button type="button" id="copy3" class="btn" disabled>Copy at ${widths.length} widths</button><p class="hint" id="copy3Hint">Resizes your app window, so open menus close.</p></div>
 <div id="later" class="later" hidden><span id="laterText"></span><button type="button" id="cancel" class="btn">Cancel</button></div>
 <div id="tabs"></div><div id="msg" role="status"></div>
 <section class="rec"><h2>Recent</h2><div id="recent"><div class="empty">Copies you make show up here.</div></div></section>

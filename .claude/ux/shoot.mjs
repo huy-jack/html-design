@@ -16,6 +16,7 @@ const load = (p) => import(pathToFileURL(join(repo, p)).href)
 const { readConfig, writeConfig } = await load('plugin/scripts/config.mjs')
 const { makeSkeleton } = await load('plugin/scripts/setup.mjs')
 const { createViewServer } = await load('plugin/scripts/view.mjs')
+const { writeSwitcher } = await load('plugin/scripts/switcher-node.mjs')
 const { chromium } = createRequire(join(repo, 'package.json'))('playwright')
 
 const args = process.argv.slice(2)
@@ -33,6 +34,8 @@ if (empty) {
   makeSkeleton(root, readConfig(root))
 }
 const cfg = readConfig(root)
+// The viewer script in a project is refreshed only at session start: refresh it here, or the shots show an old viewer.
+writeSwitcher(join(repo, 'plugin'), join(root, cfg.dir), cfg)
 mkdirSync(out, { recursive: true })
 const screens = readdirSync(join(root, cfg.dir, 'screens')).filter((f) => f.endsWith('.html')).map((f) => f.replace(/\.html$/, '')).sort()
 screen ??= screens[0]

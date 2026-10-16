@@ -288,7 +288,7 @@
     'body{margin:0}' +
     '[data-sd=cap-note],[data-sd=cap-count]{display:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}[data-sd=cap-count]{font:500 12px ' + MONO + ';color:var(--ink)}' +
     // Below 1280 px the state title keeps its room: the second line and 1/9 go to the caption, the arrows go (keys and list cover them).
-    '@media (max-width:1280px){.sd-bar .sd-seg svg{display:none}.sd-bar [data-sd=prev],.sd-bar [data-sd=next],.sd-bar .sd-count,.sd-bar .sd-vrnav,.sd-title span,.sd-seglab{display:none}[data-sd=cap-note],[data-sd=cap-count]{display:inline}}' +
+    '@media (max-width:1280px){.sd-bar .sd-seg svg{display:none}.sd-bar [data-sd=prev],.sd-bar [data-sd=next],.sd-bar .sd-count,.sd-bar .sd-vrnav,.sd-title span{display:none}[data-sd=cap-note],[data-sd=cap-count]{display:inline}}' +
     '@media (max-width:900px){.sd-app,.sd-app.sd-nolist{grid-template-columns:minmax(0,1fr)}.sd-side{display:none}[data-sd=source]{display:none}.sd-stage{padding:16px}.sd-bar [data-sd=state-pick]{display:inline-flex}.sd-bar [data-sd=hide-list],.sd-bar .sd-title{display:none}.sd-bar .sd-homebar{display:grid}}'
 
   // Added to the frame's own page only: never part of a screen file or a match picture (render.mjs builds its own page).
@@ -954,8 +954,9 @@
       var f = frame.getBoundingClientRect()
       var r = picked.getBoundingClientRect()
       pin.hidden = false
-      pin.style.left = Math.max(f.left, f.left + r.left * scale - 8) + 'px'
-      pin.style.top = Math.max(f.top, f.top + r.top * scale - 8) + 'px'
+      // Outside the element, at its left edge and centred on its height, so its own text stays readable.
+      pin.style.left = Math.max(f.left + 2, f.left + r.left * scale - pin.offsetWidth - 4) + 'px'
+      pin.style.top = Math.max(f.top + 2, f.top + (r.top + r.height / 2) * scale - pin.offsetHeight / 2) + 'px'
     }
     // The nearest heading before the element in its own block: a heading sibling, or a wrapper that holds only one.
     function isHeading(e) { return /^H[1-6]$/.test(e.tagName) || (e.getAttribute && e.getAttribute('role') === 'heading') }

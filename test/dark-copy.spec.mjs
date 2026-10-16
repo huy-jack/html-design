@@ -75,7 +75,7 @@ describe('copy while the app is dark (S7)', () => {
       expect(got.scheme).not.toContain('dark')
       expect(got.bg).toBe('rgb(255, 255, 255)')
       // Control: the copied dark rule still works, so the light result is not an accident.
-      await view.click('.sd-bar button:not([data-sd]):not([data-width])')
+      await view.click('.sd-bar [data-theme="dark"]')
       await view.waitForFunction(() => getComputedStyle(document.querySelector('iframe.sd-frame')?.contentDocument?.body ?? document.createElement('i')).backgroundColor === 'rgb(0, 0, 0)', null, { timeout: 5000 })
     }, 60000)
   }
