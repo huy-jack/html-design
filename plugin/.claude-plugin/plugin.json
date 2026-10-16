@@ -1,1 +1,1 @@
-{ "name": "html-design", "version": "0.3.1", "description": "Copy real app screens into HTML design files, edit them with Claude, view them live.", "author": { "name": "Huy" }, "license": "MIT" }
+{ "name": "html-design", "version": "0.4.0", "description": "Copy real app screens into HTML design files, edit them with Claude, view them live.", "author": { "name": "Huy" }, "license": "MIT" }
