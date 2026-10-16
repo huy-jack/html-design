@@ -377,7 +377,12 @@
       home.setAttribute('aria-label', 'All screens')
       head.appendChild(home)
     }
+    // data-screen is the name the user typed ("Settings"); notes, links and the server use the file name (settings).
     var screenName = doc.documentElement.getAttribute('data-screen') || ''
+    var screenKey = (function () {
+      var m = /([^/]+)\.html$/.exec(root.location.pathname || '')
+      try { return m ? decodeURIComponent(m[1]) : screenName } catch (e) { return m[1] }
+    })()
     var nameEl = el('b')
     nameEl.textContent = screenName || 'Screen'
     head.append(nameEl, tagged('small', '', 'states', plural(states.length, 'state')))
@@ -578,7 +583,7 @@
     // The count of this screen's open notes is a button; it opens the list (element, state, Edit, Delete).
     function refreshNotes() {
       return root
-        .fetch('/__notes?screen=' + encodeURIComponent(screenName) + (listOpen ? '&list=1' : ''))
+        .fetch('/__notes?screen=' + encodeURIComponent(screenKey) + (listOpen ? '&list=1' : ''))
         .then(function (r) { return r.json() })
         .then(
           function (j) {
@@ -828,7 +833,7 @@
         save.disabled = true
         save.textContent = 'Saving…'
         err.hidden = true
-        postNote({ screen: screenName, state: shownBlockId(at.s, at.width), width: at.width, theme: theme, path: path, text: text, tag: tag, note: words }).then(
+        postNote({ screen: screenKey, state: shownBlockId(at.s, at.width), width: at.width, theme: theme, path: path, text: text, tag: tag, note: words }).then(
           function () {
             saving = false
             if (pendingReload) setFlag('sd-toast')
@@ -904,7 +909,7 @@
     function follow(link) {
       var t = parseTarget(link.to)
       var width = current.width
-      if (t.screen && t.screen !== screenName) {
+      if (t.screen && t.screen !== screenKey) {
         root.location.href = t.screen + '.html#' + encodeURIComponent(t.state) + '@' + width
         return
       }

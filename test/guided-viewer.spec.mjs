@@ -42,6 +42,29 @@ async function open(opts = {}, viewport = { width: 1440, height: 900 }) {
 const q = (key) => `[data-sd="${key}"]`
 const text = (pg, sel) => pg.locator(sel).innerText()
 
+describe('screen key', () => {
+  it('a screen named "Settings" (file settings.html): a Pick note saves under the file name and shows in the list', async () => {
+    const { r, cfg } = project()
+    writeFileSync(join(r, 'design/screens/settings.html'), serializeScreen({ screen: 'Settings', states: [{ id: 'a', attrs: { 'data-label': 'Alpha' }, html: '<main><p id="one">Update details</p></main>' }] }))
+    const v = await createViewServer({ root: r, cfg, build: false, watch: false, dataDir: null, port: 0 })
+    cleanup.push(() => v.close())
+    const pg = await br.newPage()
+    cleanup.push(() => pg.close())
+    await pg.goto(`${v.url}/screens/settings.html#a@1440`)
+    await pg.waitForFunction(() => document.querySelector('iframe.sd-frame')?.contentDocument?.getElementById('one'))
+    expect(await pg.locator('.sd-scr b').innerText()).toBe('Settings')
+    await pg.keyboard.press('p')
+    await pg.frameLocator('iframe.sd-frame').locator('#one').click()
+    await pg.fill(q('note-input'), 'bigger')
+    await pg.press(q('note-input'), 'Enter')
+    await pg.locator(q('toast')).waitFor({ state: 'visible' })
+    expect(readNotes(r, cfg).map((n) => [n.screen, n.state, n.note])).toEqual([['settings', 'a', 'bigger']])
+    await pg.click(q('notes'))
+    await pg.locator('[data-sd-note]').first().waitFor()
+    expect(await pg.locator('[data-sd-note]').first().innerText()).toContain('bigger')
+  }, 30000)
+})
+
 describe('Pick mode', () => {
   it('Pick on: the button turns the Pick color, a bar says what to do, a tag follows the pointer; Esc stops it', async () => {
     const { pg, frame } = await open()
