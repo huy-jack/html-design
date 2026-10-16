@@ -94,9 +94,9 @@ describe('viewer hardening', () => {
 })
 
 describe('viewer pages', () => {
-  it('home page is titled Designs and lists screens', () => {
+  it('home page is titled Screens and lists screens', () => {
     const html = homePage([{ file: 'a.html', states: 3 }])
-    expect(html).toContain('<title>Designs</title>')
+    expect(html).toContain('<title>Screens</title>')
     expect(html).toContain('href="/screens/a.html"')
     expect(html).toContain('3 states')
   })
@@ -106,7 +106,7 @@ describe('viewer pages', () => {
     writeFileSync(join(r, 'secret.txt'), 'no')
     const v = await viewer({ root: r, cfg })
     const u = `http://127.0.0.1:${v.port}`
-    expect(await (await fetch(`${u}/`)).text()).toContain('1 states')
+    expect(await (await fetch(`${u}/`)).text()).toContain('>1 state<')
     expect((await fetch(`${u}/screens/x.html`)).status).toBe(200)
     expect((await fetch(`${u}/screens/none.html`)).status).toBe(404)
     expect((await fetch(`${u}/screens/..%2f..%2fsecret.txt`)).status).toBe(404)
@@ -219,16 +219,16 @@ describe('Copy window in a browser', () => {
     pg.on('dialog', (d) => { dialogs.push(d.message()); d.accept() })
     await pg.goto(`${v.url}/__copy`)
     await pg.waitForFunction(() => !document.getElementById('tabPick').hidden)
-    await pg.selectOption('#screen', '__new'); await pg.fill('#newScreen', 'Home Page'); await pg.fill('#state', 'a')
+    await pg.selectOption('#screen', '__new'); await pg.fill('#newScreen', 'Home Page'); await pg.fill('#name', 'a')
     await pg.click('#copyLater')
-    await pg.waitForFunction(() => /^Saved a/.test(document.getElementById('msg').textContent))
+    await pg.waitForFunction(() => /^Saved "a"/.test(document.getElementById('msg').textContent))
     expect(dialogs).toEqual(['State a already exists. Replace?'])
-    expect(sent).toEqual([{ screen: 'Home Page', state: 'a', delay: 5, replace: true }])
-    await pg.fill('#state', 'b')
+    expect(sent).toEqual([{ screen: 'Home Page', state: 'a', label: 'a', delay: 5, replace: true }])
+    await pg.fill('#name', 'b')
     await pg.click('#copyLater')
-    await pg.waitForFunction(() => /^Saved b/.test(document.getElementById('msg').textContent))
+    await pg.waitForFunction(() => /^Saved "b"/.test(document.getElementById('msg').textContent))
     expect(dialogs).toHaveLength(1)
-    expect(sent[1]).toEqual({ screen: 'Home Page', state: 'b', delay: 5 })
+    expect(sent[1]).toEqual({ screen: 'Home Page', state: 'b', label: 'b', delay: 5 })
   }, 30000)
   it('Copy at 3 widths: Replace? first, each resize brings the app tab to the front, the result shows in the app tab', async () => {
     const { r, cfg } = project()
@@ -254,19 +254,19 @@ describe('Copy window in a browser', () => {
     await pg.goto(`${v.url}/__copy`)
     await pg.waitForFunction(() => !document.getElementById('tabPick').hidden)
     await pg.selectOption('#tabPick', { index: 1 })
-    await pg.selectOption('#screen', '__new'); await pg.fill('#newScreen', 'Home Page'); await pg.fill('#state', 'a')
+    await pg.selectOption('#screen', '__new'); await pg.fill('#newScreen', 'Home Page'); await pg.fill('#name', 'a')
     await pg.click('#copy3')
-    await pg.waitForFunction(() => /^Saved a at/.test(document.getElementById('msg').textContent) && !document.getElementById('copy3').disabled)
+    await pg.waitForFunction(() => /^Saved "a" at/.test(document.getElementById('msg').textContent) && !document.getElementById('copy3').disabled)
     expect(dialogs).toEqual(['State a already exists. Replace?'])
     const tabId = sent.find((x) => x.p === '__resize').tab
     expect(tabId).toMatch(/^t-\d+$/)
     expect(sent.map((x) => x.p + (x.width ?? ''))).toEqual(['__resize1440', '__copy', '__resize1024', '__copy', '__resize375', '__copy', '__resize1440', '__toast'])
     for (const x of sent.filter((x) => x.p === '__resize')) expect(x).toMatchObject({ front: true, tab: tabId })
     for (const x of sent.filter((x) => x.p === '__copy')) expect(x).toMatchObject({ replace: true, tab: tabId })
-    expect(sent.at(-1)).toEqual({ p: '__toast', text: 'Saved a at 1440, 1024, 375', tab: tabId })
+    expect(sent.at(-1)).toEqual({ p: '__toast', text: 'Saved "a" at 1440, 1024, 375', tab: tabId })
     // A failure stops the run and shows there too.
     sent.length = 0; failAt = 'b'
-    await pg.fill('#state', 'b')
+    await pg.fill('#name', 'b')
     await pg.click('#copy3')
     await pg.waitForFunction(() => /boom/.test(document.getElementById('msg').textContent))
     await pg.waitForFunction(() => !document.getElementById('copy3').disabled)
