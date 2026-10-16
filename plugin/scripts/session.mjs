@@ -125,16 +125,24 @@ export async function startSession({ root, cfg, data, headless = false, openPage
   const profileDir = join(dataPaths(data).profiles, createHash('sha256').update(root).digest('hex').slice(0, 12))
   mkdirSync(profileDir, { recursive: true })
   // The user is in the app tab, so the result shows there too: a toast, added only after the copy is done.
+  // A taken name is saved under the next free number ("Menu open 2"), and the toast says so.
   const onChord = async (page) => {
     const p = preset
     if (!p) {
       console.warn('Chord ignored: fill in a screen and a name in the Copy tab first.')
-      return browser.toast(page, 'Fill in a screen and state in the Copy tab first')
+      return browser.toast(page, 'Name this view in the Copy tab first.')
     }
+    const name = p.label || p.state
     try {
-      const out = await browser.copyFrom(page, { screen: p.screen, state: p.state, label: p.label })
-      console.log(out.status === 201 ? `Chord copy saved ${out.saved}` : `Chord copy skipped: state ${p.state} already exists`)
-      await browser.toast(page, out.status === 201 ? `Saved ${p.state}` : `${p.state} already exists: change the state id in the Copy tab`)
+      let saved = p
+      let out = await browser.copyFrom(page, { screen: p.screen, state: p.state, label: p.label })
+      for (let k = 2; out.status === 409 && k < 100; k++) {
+        saved = { screen: p.screen, state: `${p.state}-${k}`.slice(0, 120), label: `${name} ${k}` }
+        out = await browser.copyFrom(page, saved)
+      }
+      if (out.status !== 201) throw new Error(`state ${p.state} and its numbered names are taken`)
+      console.log(`Chord copy saved ${out.saved} as ${saved.state}`)
+      await browser.toast(page, saved === p ? `Saved "${name}". See it in the viewer tab.` : `"${name}" already exists. It was saved as "${saved.label}".`)
     } catch (e) {
       console.error(`Chord copy failed: ${e.message}`)
       await browser.toast(page, `Copy failed: ${e.message}`)
