@@ -1,0 +1,192 @@
+// The viewer in a real browser: Pick mode, the note box that never loses text, the notes list, session stop.
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { readConfig, writeConfig } from '../plugin/scripts/config.mjs'
+import { readNotes } from '../plugin/scripts/notes.mjs'
+import { serializeScreen } from '../plugin/scripts/screen-file.mjs'
+import { makeSkeleton } from '../plugin/scripts/setup.mjs'
+import { createViewServer } from '../plugin/scripts/view.mjs'
+
+function project() {
+  const r = mkdtempSync(join(tmpdir(), 'gv-'))
+  execFileSync('git', ['init', '-q'], { cwd: r })
+  writeFileSync(join(r, 'app.css'), '@import "tailwindcss";\n')
+  writeConfig(r, { css: 'app.css', themeVars: [] })
+  makeSkeleton(r, readConfig(r))
+  const cfg = readConfig(r)
+  const states = [['a', 'Alpha', '<main><p id="one">Update details</p><p id="two">Second</p></main>'], ['b', 'Beta', '<p>b</p>'], ['c', 'Gamma', '<p>c</p>']]
+  writeFileSync(join(r, 'design/screens/x.html'), serializeScreen({ screen: 'x', states: states.map(([id, label, html]) => ({ id, attrs: { 'data-label': label }, html })) }))
+  return { r, cfg }
+}
+
+let br
+let cleanup = []
+beforeAll(async () => { const { chromium } = await import('playwright'); br = await chromium.launch({ headless: true }) })
+afterAll(async () => { await br?.close() })
+afterEach(async () => { for (const f of cleanup.reverse()) await f(); cleanup = [] })
+async function open(opts = {}, viewport = { width: 1440, height: 900 }) {
+  const { r, cfg } = project()
+  const v = await createViewServer({ root: r, cfg, build: false, watch: false, dataDir: null, port: 0, ...opts })
+  cleanup.push(() => v.close())
+  const ctx = await br.newContext({ viewport, permissions: ['clipboard-read', 'clipboard-write'] })
+  cleanup.push(() => ctx.close())
+  const pg = await ctx.newPage()
+  await pg.goto(`${v.url}/screens/x.html#a@1440`)
+  await pg.waitForFunction(() => document.querySelector('iframe.sd-frame')?.contentDocument?.getElementById('one'))
+  const frame = pg.frameLocator('iframe.sd-frame')
+  return { r, cfg, v, pg, frame }
+}
+const q = (key) => `[data-sd="${key}"]`
+const text = (pg, sel) => pg.locator(sel).innerText()
+
+describe('Pick mode', () => {
+  it('Pick on: the button turns the Pick color, a bar says what to do, a tag follows the pointer; Esc stops it', async () => {
+    const { pg, frame } = await open()
+    await pg.keyboard.press('p')
+    expect(await pg.locator(q('pick')).getAttribute('aria-pressed')).toBe('true')
+    expect(await pg.locator(q('pick')).evaluate((b) => getComputedStyle(b).backgroundColor)).toBe('rgb(225, 29, 116)')
+    expect(await text(pg, q('pickbar'))).toBe('Pick is on. Click any part of the design to write a note. Press Esc or P to stop.')
+    await frame.locator('#one').hover()
+    await pg.locator(q('picktag')).waitFor({ state: 'visible' })
+    expect(await text(pg, q('picktag'))).toBe('Click to add a note')
+    expect(await frame.locator('#one').evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('dashed')
+    await pg.keyboard.press('Escape')
+    expect(await pg.locator(q('pick')).getAttribute('aria-pressed')).toBe('false')
+    expect(await pg.locator(q('pickbar')).isHidden()).toBe(true)
+  }, 30000)
+})
+
+describe('note box', () => {
+  it('names the element, asks before it drops typed text (another click, Esc), and Keep writing keeps it', async () => {
+    const { pg, frame } = await open()
+    await pg.keyboard.press('p')
+    await frame.locator('#one').click()
+    expect(await text(pg, q('note-label'))).toBe('Note on: "Update details"')
+    await pg.fill(q('note-input'), 'bigger please')
+    await frame.locator('#two').click()
+    expect(await text(pg, q('discard'))).toContain('Discard this note?')
+    await pg.click(q('keep'))
+    expect(await pg.inputValue(q('note-input'))).toBe('bigger please')
+    expect(await text(pg, q('note-label'))).toBe('Note on: "Update details"')
+    await pg.focus(q('note-input'))
+    await pg.keyboard.press('Escape')
+    expect(await pg.locator(q('discard')).isVisible()).toBe(true)
+    await pg.click(q('discard-yes'))
+    expect(await pg.locator('.sd-notebox').count()).toBe(0)
+    // An empty box closes at once.
+    await frame.locator('#two').click()
+    expect(await text(pg, q('note-label'))).toBe('Note on: "Second"')
+    await pg.keyboard.press('Escape')
+    expect(await pg.locator('.sd-notebox').count()).toBe(0)
+  }, 30000)
+
+  it('stays open until the save returns; on failure keeps the text and says how to recover', async () => {
+    const { pg, frame } = await open()
+    let mode = 'down'
+    await pg.route('**/__notes', (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      if (mode === 'down') return route.abort()
+      return route.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"note must be 1 to 2000 characters"}' })
+    })
+    await pg.keyboard.press('p')
+    await frame.locator('#one').click()
+    await pg.fill(q('note-input'), 'bigger please')
+    await pg.click('.sd-notebox [type=submit]')
+    await pg.locator(q('note-error')).waitFor({ state: 'visible' })
+    expect(await text(pg, q('note-error'))).toBe('Not saved: the session is stopped. In Claude Code, type /html-design start, then press Save again.')
+    expect(await pg.inputValue(q('note-input'))).toBe('bigger please')
+    mode = 'bad'
+    await pg.click('.sd-notebox [type=submit]')
+    await pg.waitForFunction(() => /note must be/.test(document.querySelector('[data-sd="note-error"]').innerText))
+    expect(await text(pg, q('note-error'))).toBe('Not saved: note must be 1 to 2000 characters')
+    expect(await pg.inputValue(q('note-input'))).toBe('bigger please')
+  }, 30000)
+
+  it('a saved note: a toast says what to do next with a Copy button, the count is a button, the state row shows the count', async () => {
+    const { r, cfg, pg, frame } = await open()
+    await pg.keyboard.press('p')
+    await frame.locator('#one').click()
+    await pg.fill(q('note-input'), 'bigger please')
+    await pg.press(q('note-input'), 'Enter')
+    await pg.locator(q('toast')).waitFor({ state: 'visible' })
+    expect(await text(pg, q('toast'))).toContain('Note saved. When you are done, say do my notes in Claude Code.')
+    expect(await pg.locator('.sd-notebox').count()).toBe(0)
+    expect(readNotes(r, cfg).map((n) => [n.state, n.text, n.note])).toEqual([['a', 'Update details', 'bigger please']])
+    await pg.click(q('toast-copy'))
+    expect(await pg.evaluate(() => navigator.clipboard.readText())).toBe('do my notes')
+    await pg.waitForFunction(() => document.querySelector('[data-sd="notes"]').innerText === '1 note')
+    expect(await pg.locator(q('notes')).evaluate((b) => b.tagName)).toBe('BUTTON')
+    expect(await text(pg, '[data-sd-state="a"] .sd-ncount')).toBe('1')
+  }, 30000)
+})
+
+describe('notes list', () => {
+  it('lists the open notes of this screen with Edit and Delete; changes go to the notes file', async () => {
+    const { r, cfg, v, pg } = await open()
+    const post = (body) => fetch(`${v.url}/__notes`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ screen: 'x', width: 1440, theme: 'light', path: [1, 1], tag: 'p', ...body }) })
+    await post({ state: 'a', text: 'Update details', note: 'bigger' })
+    await post({ state: 'b', text: 'b', note: 'red' })
+    await pg.reload()
+    await pg.waitForFunction(() => document.querySelector('[data-sd="notes"]').innerText === '2 notes')
+    await pg.click(q('notes'))
+    const rows = pg.locator('[data-sd-note]')
+    await rows.first().waitFor()
+    expect(await rows.count()).toBe(2)
+    expect(await rows.first().innerText()).toContain('"Update details"')
+    expect(await rows.first().innerText()).toContain('Alpha')
+    expect(await rows.first().innerText()).toContain('bigger')
+    await rows.first().locator(q('note-edit')).click()
+    await rows.first().locator('input').fill('much bigger')
+    await rows.first().locator(q('note-save')).click()
+    await pg.waitForFunction(() => /much bigger/.test(document.querySelector('[data-sd-note]').innerText))
+    await rows.nth(1).locator(q('note-delete')).click()
+    await rows.nth(1).locator(q('note-delete')).click()
+    await pg.waitForFunction(() => document.querySelectorAll('[data-sd-note]').length === 1)
+    expect(readNotes(r, cfg).map((n) => [n.state, n.note])).toEqual([['a', 'much bigger']])
+    expect(await text(pg, q('notes'))).toBe('1 note')
+  }, 30000)
+})
+
+describe('viewer states', () => {
+  it('session stopped: a bar names the start command and Pick is off with that reason', async () => {
+    const { v, pg } = await open()
+    await v.close()
+    await pg.locator(q('stopped')).waitFor({ state: 'visible', timeout: 10000 })
+    expect(await text(pg, q('stopped'))).toBe('Session stopped. Notes cannot be saved. In Claude Code, type /html-design start.')
+    expect(await pg.locator(q('pick')).isDisabled()).toBe(true)
+    expect(await pg.locator(q('pick')).getAttribute('title')).toBe('Session stopped. Notes cannot be saved. In Claude Code, type /html-design start.')
+  }, 30000)
+
+  // Updating (before the reload) is checked in switcher-ui.spec.mjs, where the event can be sent by hand.
+  it('a design change reloads the viewer, which then says Updated in the bar', async () => {
+    const { r } = project()
+    const cfg = readConfig(r)
+    const v = await createViewServer({ root: r, cfg, build: false, watch: true, dataDir: null, port: 0 })
+    cleanup.push(() => v.close())
+    const pg = await br.newPage()
+    cleanup.push(() => pg.close())
+    await pg.goto(`${v.url}/screens/x.html#a@1440`)
+    await pg.waitForFunction(() => document.querySelector('iframe.sd-frame')?.contentDocument?.getElementById('one'))
+    writeFileSync(join(r, 'design/screens/x.html'), serializeScreen({ screen: 'x', states: [{ id: 'a', attrs: { 'data-label': 'Alpha' }, html: '<p id="one">changed</p>' }] }))
+    await pg.waitForFunction(() => document.querySelector('iframe.sd-frame')?.contentDocument?.getElementById('one')?.textContent === 'changed', null, { timeout: 5000 })
+    await pg.waitForFunction(() => document.querySelector('[data-sd="status"]').innerText === 'Updated', null, { timeout: 3000 })
+  }, 30000)
+
+  it('Hide list (L) and zoom 100% give the design the room; below 900 px the states are a drop-down in the bar', async () => {
+    const { pg } = await open({}, { width: 1024, height: 768 })
+    const frameW = () => pg.locator('.sd-fit').evaluate((el) => el.getBoundingClientRect().width)
+    const before = await frameW()
+    await pg.keyboard.press('l')
+    expect(await pg.locator('.sd-side').isHidden()).toBe(true)
+    expect(await frameW()).toBeGreaterThan(before + 200)
+    await pg.click('[data-zoom="100"]')
+    expect(await pg.locator('iframe.sd-frame').evaluate((f) => f.style.transform)).toBe('')
+    expect(await text(pg, q('size'))).toBe('1440 px')
+    await pg.setViewportSize({ width: 800, height: 700 })
+    await pg.selectOption(q('state-pick'), 'c')
+    await pg.waitForFunction(() => location.hash === '#c@1440')
+  }, 30000)
+})

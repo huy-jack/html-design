@@ -50,9 +50,12 @@ describe('switcher bar', () => {
     expect(q(w, 'next')).not.toBeNull()
   })
 
-  it('shows the open note count', async () => {
-    const w = await boot('http://127.0.0.1:8900/screens/x.html#b@1440', (u) => (String(u).startsWith('/__notes') ? reply({ topic: 't', open: 2 }) : reply({})))
-    expect(q(w, 'notes').textContent).toBe('2 open notes')
+  it('shows the note count of this screen as a button: 1 note, 2 notes', async () => {
+    const w = await boot('http://127.0.0.1:8900/screens/x.html#b@1440', (u) => (String(u).startsWith('/__notes') ? reply({ topic: 't', open: 5, byState: { a: 1, b: 1 } }) : reply({})))
+    expect(q(w, 'notes').textContent).toBe('2 notes')
+    expect(q(w, 'notes').tagName).toBe('BUTTON')
+    const one = await boot('http://127.0.0.1:8900/screens/x.html#b@1440', (u) => (String(u).startsWith('/__notes') ? reply({ open: 1, byState: { b: 1 } }) : reply({})))
+    expect(q(one, 'notes').textContent).toBe('1 note')
     expect(q(w, 'live')).toBeNull()
   })
 
@@ -61,6 +64,101 @@ describe('switcher bar', () => {
       String(u).startsWith('/__notes') ? reply({ topic: 't', open: 0, error: 'The notes file is not valid JSON' }) : reply({ live: false, reason: 'x' }),
     )
     expect(q(w, 'notes').textContent).toBe('The notes file is not valid JSON')
+  })
+})
+
+// A stand-in for the reload stream, so a test can send its events by hand.
+function fakeEvents(w) {
+  const all = []
+  w.EventSource = class {
+    constructor() { this.l = {}; all.push(this) }
+    addEventListener(t, f) { (this.l[t] ||= []).push(f) }
+    emit(t, data = '') { const e = { data }; if (t === 'message' && this.onmessage) this.onmessage(e); for (const f of this.l[t] || []) f(e); if (t === 'error' && this.onerror) this.onerror(e) }
+  }
+  return all
+}
+async function bootWith(url, fetchImpl, before) {
+  const dom = new JSDOM(PAGE, { url, runScripts: 'outside-only', pretendToBeVisual: true })
+  const w = dom.window
+  w.fetch = fetchImpl ?? (() => Promise.reject(new Error('down')))
+  const out = before ? before(w) : null
+  w.eval(SRC)
+  if (w.document.readyState !== 'complete') await new Promise((r) => w.addEventListener('load', r))
+  await tick(w)
+  await tick(w)
+  return { w, out }
+}
+
+describe('guided viewer bar', () => {
+  it('names the design theme button and shows which theme the design is in', async () => {
+    const w = await boot('http://127.0.0.1:8900/screens/x.html#a@1440')
+    const dark = w.document.querySelector('.sd-bar button:not([data-sd]):not([data-width])')
+    expect(dark.getAttribute('aria-label')).toBe('Design in dark')
+    expect(dark.textContent).toBe('Light')
+    dark.click()
+    expect(dark.textContent).toBe('Dark')
+  })
+  it('the screen head says the state count in words', async () => {
+    const w = await boot('file:///r/design/screens/x.html#a')
+    expect(q(w, 'states').textContent).toBe('3 states')
+  })
+  it('a state with notes shows the count as text next to its dot', async () => {
+    const w = await boot('http://127.0.0.1:8900/screens/x.html#a@1440', (u) => (String(u).startsWith('/__notes') ? reply({ open: 2, byState: { b: 2 } }) : reply({})))
+    expect(w.document.querySelector('[data-sd-state="b"] .sd-ncount').textContent).toBe('2')
+  })
+  it('the filter shows how many states match, and Enter opens the first one', async () => {
+    const w = await boot('http://127.0.0.1:8900/screens/x.html#a@1440')
+    const s = w.document.querySelector('input[type="search"]')
+    expect(q(w, 'filter-count').textContent).toBe('')
+    s.value = 'c'
+    s.dispatchEvent(new w.Event('input'))
+    expect(q(w, 'filter-count').textContent).toBe('1 of 3')
+    s.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await tick(w)
+    expect(w.location.hash).toBe('#c@1440')
+  })
+  it('L hides and shows the state list', async () => {
+    const w = await boot('http://127.0.0.1:8900/screens/x.html#a@1440')
+    w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'l', bubbles: true }))
+    expect(w.document.querySelector('.sd-app').classList.contains('sd-nolist')).toBe(true)
+    expect(q(w, 'hide-list').getAttribute('aria-pressed')).toBe('true')
+    q(w, 'hide-list').click()
+    expect(w.document.querySelector('.sd-app').classList.contains('sd-nolist')).toBe(false)
+  })
+  it('a tool theme switch, apart from the design theme, remembered for every plugin page', async () => {
+    const w = await boot('http://127.0.0.1:8900/screens/x.html#a@1440')
+    const app = w.document.querySelector('.sd-app')
+    expect(app.getAttribute('data-ui')).toBeNull()
+    q(w, 'ui-theme').click()
+    expect(app.getAttribute('data-ui')).toBe('dark')
+    expect(w.localStorage.getItem('hd-ui')).toBe('dark')
+    expect(JSON.parse(w.sessionStorage.getItem('sd-view') || '{}').theme ?? 'light').toBe('light')
+  })
+  it('a change on its way shows Updating in the bar', async () => {
+    const { w, out } = await bootWith('http://127.0.0.1:8900/screens/x.html#a@1440', undefined, fakeEvents)
+    out[0].emit('change')
+    expect(q(w, 'status').textContent).toBe('Updating…')
+  })
+  it('a failed build: a titled card says the last good version shows and what to say; the raw output is behind Show details', async () => {
+    const { w, out } = await bootWith('http://127.0.0.1:8900/screens/x.html#a@1440', undefined, fakeEvents)
+    out[0].emit('change')
+    out[0].emit('buildError', JSON.stringify('CSS build failed: boom'))
+    const card = q(w, 'build-error')
+    expect(card.querySelector('b').textContent).toBe('The design styles did not build. The last good version is shown. In Claude Code, say: fix the build.')
+    expect(card.querySelector('details summary').textContent).toBe('Show details')
+    expect(card.querySelector('details').textContent).toContain('CSS build failed: boom')
+    expect(q(w, 'status').textContent).toBe('')
+  })
+  it('a lost stream with no server: the stopped bar, and Pick is off with the reason', async () => {
+    const { w, out } = await bootWith('http://127.0.0.1:8900/screens/x.html#a@1440', (u) => (String(u).startsWith('/__notes?') ? reply({ open: 0 }) : Promise.reject(new Error('down'))), fakeEvents)
+    out[0].emit('error')
+    await tick(w); await tick(w)
+    expect(q(w, 'stopped').hidden).toBe(false)
+    expect(q(w, 'pick').disabled).toBe(true)
+    out[0].emit('open')
+    if (out[0].onopen) out[0].onopen()
+    expect(q(w, 'stopped').hidden).toBe(true)
+    expect(q(w, 'pick').disabled).toBe(false)
   })
 })
 
