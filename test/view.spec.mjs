@@ -580,6 +580,28 @@ describe('copy through the real browser', () => {
     expect(stateFromText(text, 'scripted').html).not.toContain('id="hover-menu"')
   }, 60000)
 
+  it('a fixed layer placed from the bottom-right lands where it was in a taller frame; a translate-placed popper stays', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const { r, cfg } = project({ url: fx.a + '/login' })
+    const b = await openBrowser({ root: r, cfg, dataDir: dataDir(), profileDir: mkdtempSync(join(tmpdir(), 'prof-')), headless: true }); cleanup.push(() => b.close())
+    const v = await viewer({ root: r, cfg, browser: b })
+    const app = b.appPages()[0]
+    await app.setViewportSize({ width: 1440, height: 900 })
+    await app.goto(fx.a + '/login'); await app.goto(fx.a + '/floating')
+    const box = (p, sel) => p.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { top: r.top, left: r.left, width: r.width, height: r.height } }, sel)
+    const live = { menu: await box(app, '#fixed-menu'), pop: await box(app, '#popper') }
+    expect((await post(v.port, '/__copy', { screen: 'Floating', state: 'open' })).status).toBe(201)
+    const view = await b.context.newPage()
+    await view.setViewportSize({ width: 1440, height: 1600 })
+    await view.goto(`http://127.0.0.1:${v.port}/__state/floating/open`)
+    for (const [k, sel] of [['menu', '#fixed-menu'], ['pop', '#popper']]) {
+      const got = await box(view, sel)
+      expect(Math.abs(got.top - live[k].top)).toBeLessThanOrEqual(1)
+      expect(Math.abs(got.left - live[k].left)).toBeLessThanOrEqual(1)
+      expect(Math.abs(got.height - live[k].height)).toBeLessThanOrEqual(1)
+    }
+  }, 60000)
+
   it('POST /__copy with delay waits, counts down in the app tabs, then copies the tab in view', async () => {
     const fx = await startFixture(); cleanup.push(() => fx.close())
     const { r, cfg } = project({ url: fx.a + '/login' })

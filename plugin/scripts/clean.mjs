@@ -6,6 +6,26 @@ export function cleanDocument(doc, { dark }) {
   const remote = []
   const warnings = []
   const body = doc.body
+  // 0. Fixed layers (menus, popovers) placed from the bottom or right of the window land elsewhere in a frame of
+  // another height: store their measured place from the top-left. offsetTop/Left ignore transforms, so a layer
+  // placed by translate (top:0;left:0) keeps its corner and its transform. Elements in normal flow are untouched.
+  const view = doc.defaultView
+  if (view && view.getComputedStyle) {
+    for (const el of body.querySelectorAll('*')) {
+      const cs = view.getComputedStyle(el)
+      if (cs.position !== 'fixed' || cs.display === 'none' || !(el.offsetWidth || el.offsetHeight)) continue
+      if (cs.bottom === 'auto' && cs.right === 'auto') continue
+      const set = (k, v) => el.style.setProperty(k, v, el.style.getPropertyPriority(k))
+      const px = (v) => parseFloat(v) || 0
+      // Stretched between top and bottom (or left and right): the size came from the window, so keep it.
+      if (cs.top !== 'auto' && cs.bottom !== 'auto') { set('box-sizing', 'border-box'); set('height', `${el.offsetHeight}px`) }
+      if (cs.left !== 'auto' && cs.right !== 'auto') { set('box-sizing', 'border-box'); set('width', `${el.offsetWidth}px`) }
+      set('top', `${el.offsetTop - px(cs.marginTop)}px`)
+      set('left', `${el.offsetLeft - px(cs.marginLeft)}px`)
+      set('bottom', 'auto')
+      set('right', 'auto')
+    }
+  }
   // 1. What the user typed lives in DOM properties, not attributes: copy it over.
   for (const el of body.querySelectorAll('input')) {
     if (el.type === 'checkbox' || el.type === 'radio') {
