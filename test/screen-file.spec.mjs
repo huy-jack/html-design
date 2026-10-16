@@ -1,12 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { JSDOM } from 'jsdom'
-import { diffStates, groupVariants, lintAdded, mergeStates, parseScreen, serializeScreen, slugScreen, validateLinks, writeLinksBlock, listScreenIds } from '../plugin/scripts/screen-file.mjs'
+import { diffStates, groupVariants, lintAdded, mergeStates, parseScreen, serializeScreen, slugScreen, slugState, validateLinks, writeLinksBlock, listScreenIds } from '../plugin/scripts/screen-file.mjs'
 
 const st = (id, html, attrs = {}) => ({ id, html, attrs: { 'data-flow': 'onboarding', 'data-label': id, ...attrs } })
 const file = (states) => serializeScreen({ screen: 'onboarding', states })
 
 describe('screen file', () => {
   it('slugs screen names', () => expect(slugScreen('Onboarding')).toBe('onboarding'))
+  it('makes a state id from a typed name: lowercase, spaces to -, only letters digits - _ .', () => {
+    expect(slugState('Menu open')).toBe('menu-open')
+    expect(slugState('  Step 2: Pay (card)  ')).toBe('step-2-pay-card')
+    expect(slugState('v1.2_draft')).toBe('v1.2_draft')
+    expect(slugState('Ünïcode only é')).toBe('ncode-only')
+    expect(slugState('!!!')).toBe('')
+    expect(slugState('x'.repeat(200))).toHaveLength(120)
+  })
 
   it('round-trips and is idempotent, with German text, quotes and escaped tags (Review Focus)', () => {
     const a = file([st('ready', '<p class="text-13">Fünf «Ideen» &amp; "Zitate" &lt;/template&gt;</p>', { 'data-note': 'He said "go"' })])

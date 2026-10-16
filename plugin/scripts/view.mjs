@@ -48,6 +48,9 @@ function validCopy(b) {
   if (b.delay != null && !isInt(b.delay, 1, 10)) return 'delay must be whole seconds, 1 to 10'
   return null
 }
+const NO_SESSION = 'The session is not running. In Claude Code, type /html-design start.'
+const NO_APP_TAB = "Your app is not open yet. Open a new tab in this browser window (Ctrl+T or Cmd+T) and go to your app's address."
+const FOCUS_PATH = /^\/(?:__copy|screens\/[a-z0-9-]{1,80}\.html(?:#[\w.%@-]{0,300})?)?$/
 const TAB_RULE = 'tab must be a tab id from the tabs list, target:<CDP target id>, or a tab number'
 const validTab = (t) => t == null || isInt(t, 0, 1000) || (typeof t === 'string' && /^(t-\d{1,9}|target:[A-Za-z0-9]{1,64})$/.test(t))
 
@@ -454,8 +457,16 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     return json(res, 201, { id })
   }
 
-  // The last copies of this session, newest first, for the Copy window's Recent list.
+  // The last copies of this session, newest first, for the Copy tab's Recent list.
   const recent = []
+  // The Copy in 5 s waits running now.
+  const waits = new Set()
+  async function postCancel(req, res) {
+    if (!(await readJson(req, res))) return
+    const n = waits.size
+    for (const w of waits) w.cancelled = true
+    return json(res, 200, { cancelled: n })
+  }
   // One copy at a time: two copies into one screen file would race.
   let copyChain = Promise.resolve()
   // A stable id per app page: the order of open tabs changes when one closes, so an index sent after
@@ -500,7 +511,7 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     const bad = validCopy(b)
     if (bad) return json(res, 400, { error: bad })
     const pages = browser ? browser.appPages() : []
-    const noPage = () => json(res, 503, { error: 'No app page is open. Start the session and open the app.' })
+    const noPage = () => json(res, 503, { error: browser ? NO_APP_TAB : NO_SESSION })
     if (!pages.length) return noPage()
     let { target, error } = await namedTab(pages, b.tab)
     if (error) return json(res, 400, { error })
@@ -509,11 +520,19 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
       // Copy in N s: meanwhile the user is in the app tab, opening a menu. A badge counts down there and is
       // gone before the copy settles. The tab is picked when the wait ends: the one the user used last.
       const badge = (ps, text) => Promise.all(ps.map((p) => browser.badge?.(p, text)))
-      for (let n = b.delay; n > 0; n--) {
-        await badge(target ? [target] : browser.appPages(), `Copy in ${n}`)
-        await sleep(1000)
+      // POST /__cancel ends the wait: checked every 100 ms, so Cancel answers at once.
+      const wait = { cancelled: false }
+      waits.add(wait)
+      try {
+        for (let n = b.delay; n > 0 && !wait.cancelled; n--) {
+          await badge(target ? [target] : browser.appPages(), `Copy in ${n}`)
+          for (let t = 0; t < 10 && !wait.cancelled; t++) await sleep(100)
+        }
+      } finally {
+        waits.delete(wait)
       }
       await badge(browser.appPages(), null)
+      if (wait.cancelled) return json(res, 409, { cancelled: true, error: 'Copy cancelled.' })
       if (target && !browser.appPages().includes(target)) return json(res, 400, { error: `Tab ${b.tab} closed during the wait.` })
     }
     if (!target) {
@@ -581,7 +600,39 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     return json(res, 200, { ok: true })
   }
 
-  // The Copy window reports its names (screen, state, label) so the keyboard chord can reuse them.
+  // Switches to the open Copy tab or viewer tab (path: /__copy, / or /screens/<name>.html#<state>@<width>).
+  async function postFocus(req, res) {
+    const got = await readJson(req, res)
+    if (!got) return
+    const p = got.body?.path
+    if (typeof p !== 'string' || !FOCUS_PATH.test(p)) return json(res, 400, { error: 'path must be /, /__copy or /screens/<screen>.html#<state>' })
+    if (!browser?.focus) return json(res, 503, { error: 'No session browser is open.' })
+    if (!(await browser.focus(p))) return json(res, 503, { error: 'No session browser is open.' })
+    return json(res, 200, { ok: true })
+  }
+
+  // The notes list in the viewer: change the words of an open note, or delete it. Same file, same fields.
+  async function changeNote(req, res, kind) {
+    const got = await readJson(req, res)
+    if (!got) return
+    const b = got.body ?? {}
+    if (typeof b.id !== 'string' || !/^n-\d{1,20}-\d{1,9}$/.test(b.id)) return json(res, 400, { error: 'id must be a note id' })
+    if (kind === 'edit' && (typeof b.note !== 'string' || !b.note.trim() || b.note.length > 2000)) return json(res, 400, { error: 'note must be 1 to 2000 characters' })
+    let notes
+    try {
+      notes = readNotes(root, cfg)
+    } catch (e) {
+      return json(res, 500, { error: e.message })
+    }
+    const i = notes.findIndex((n) => n.id === b.id)
+    if (i === -1) return json(res, 404, { error: `No note ${b.id}.` })
+    if (kind === 'edit') notes[i].note = b.note.trim()
+    else notes.splice(i, 1)
+    writeNotes(root, cfg, notes)
+    return json(res, 200, { ok: true })
+  }
+
+  // The Copy tab reports its names (screen, state, label) so the keyboard chord can reuse them.
   async function postPreset(req, res) {
     const got = await readJson(req, res)
     if (!got) return
@@ -609,6 +660,10 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
       if (path === '/__preset') return void postPreset(req, res).catch(fail(res))
       if (path === '/__resize') return void postResize(req, res).catch(fail(res))
       if (path === '/__toast') return void postToast(req, res).catch(fail(res))
+      if (path === '/__focus') return void postFocus(req, res).catch(fail(res))
+      if (path === '/__cancel') return void postCancel(req, res).catch(fail(res))
+      if (path === '/__notes/edit') return void changeNote(req, res, 'edit').catch(fail(res))
+      if (path === '/__notes/delete') return void changeNote(req, res, 'delete').catch(fail(res))
       return res.writeHead(404).end('Not found')
     }
     if (path === '/') {
@@ -632,16 +687,26 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
         .then((list) => json(res, 200, list), fail(res))
     }
     if (path === '/__recent') return json(res, 200, recent)
+    if (path === '/__status') {
+      // Polled by home and the Copy tab: a failed fetch means the session stopped.
+      let notes = 0
+      try { notes = readNotes(root, cfg).filter((x) => !x.done).length } catch {}
+      const screens = existsSync(screensDir) ? readdirSync(screensDir).filter((f) => f.endsWith('.html')).length : 0
+      return json(res, 200, { browser: !!browser, tabs: browser ? browser.appPages().length : 0, screens, notes })
+    }
     if (path === '/__blank') return html('<!doctype html><title>blank</title>')
     if (path === '/__copy') return html(copyWindow({ screens: existsSync(screensDir) ? readdirSync(screensDir).filter((f) => f.endsWith('.html')).sort().map((f) => f.replace(/\.html$/, '')) : [], widths: cfg.widths }))
     if (path === '/__notes') {
       try {
         const open = readNotes(root, cfg).filter((x) => !x.done)
         // ?screen=<name>: also the open notes per state, for the state list's dots.
-        const screen = new URL(req.url, 'http://x').searchParams.get('screen')
+        const params = new URL(req.url, 'http://x').searchParams
+        const screen = params.get('screen')
         const byState = {}
         if (screen) for (const x of open) if (x.screen === screen) { const id = x.state.split('@')[0]; byState[id] = (byState[id] ?? 0) + 1 }
-        return json(res, 200, screen ? { open: open.length, byState } : { open: open.length })
+        // &list=1: the notes themselves, for the viewer's notes list.
+        const list = screen && params.get('list') ? open.filter((x) => x.screen === screen).map(({ id, state, width, theme, text, tag, note }) => ({ id, state, width, theme, text, tag, note })) : null
+        return json(res, 200, screen ? { open: open.length, byState, ...(list ? { list } : {}) } : { open: open.length })
       } catch (e) {
         return json(res, 200, { open: 0, error: e.message })
       }
@@ -673,6 +738,8 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     const flush = async () => {
       const b = needBuild
       needBuild = false
+      // Sent before the build, which takes seconds: home shows a new screen at once, the viewer says Updating.
+      send('event: change\ndata: {}\n\n')
       if (b && build && !(await runBuild())) return
       send('data: reload\n\n')
     }

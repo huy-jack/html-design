@@ -278,7 +278,7 @@ describe('POST guards and copy', () => {
   it('rejects foreign Origin and non-JSON on every POST (S6)', async () => {
     const { r, cfg } = project()
     const v = await viewer({ root: r, cfg })
-    for (const p of ['/__notes', '/__copy', '/__resize', '/__toast']) {
+    for (const p of ['/__notes', '/__copy', '/__resize', '/__toast', '/__focus', '/__cancel', '/__notes/edit', '/__notes/delete']) {
       expect((await fetch(`http://127.0.0.1:${v.port}${p}`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{}' })).status).toBe(403)
       expect((await fetch(`http://127.0.0.1:${v.port}${p}`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: 'x' })).status).toBe(415)
     }
@@ -382,6 +382,84 @@ describe('POST guards and copy', () => {
   })
 })
 
+describe('guided pages: server', () => {
+  it('POST /__copy with no app tab names the fix; with no session browser it says how to start one', async () => {
+    const { r, cfg } = project()
+    const none = await viewer({ root: r, cfg })
+    expect((await (await post(none.port, '/__copy', { screen: 'x', state: 'a' })).json()).error).toBe('The session is not running. In Claude Code, type /html-design start.')
+    const empty = await viewer({ root: r, cfg, browser: stubBrowser([]) })
+    expect((await (await post(empty.port, '/__copy', { screen: 'x', state: 'a' })).json()).error).toBe("Your app is not open yet. Open a new tab in this browser window (Ctrl+T or Cmd+T) and go to your app's address.")
+  })
+  it('GET /__status: whether a session browser is open, the app tabs, screens and open notes', async () => {
+    const { r, cfg } = project()
+    writeFileSync(join(r, 'design/screens/x.html'), screen(['a']))
+    const alone = await viewer({ root: r, cfg })
+    expect(await (await fetch(`http://127.0.0.1:${alone.port}/__status`)).json()).toEqual({ browser: false, tabs: 0, screens: 1, notes: 0 })
+    const v = await viewer({ root: r, cfg, browser: stubBrowser([page('Home')]) })
+    await post(v.port, '/__notes', note)
+    expect(await (await fetch(`http://127.0.0.1:${v.port}/__status`)).json()).toEqual({ browser: true, tabs: 1, screens: 1, notes: 1 })
+  })
+  it('POST /__focus brings the open Copy tab or viewer tab to the front; 503 without a session browser; 400 for another path', async () => {
+    const { r, cfg } = project()
+    const alone = await viewer({ root: r, cfg })
+    expect((await post(alone.port, '/__focus', { path: '/__copy' })).status).toBe(503)
+    const b = stubBrowser([])
+    b.focus = async (p) => { b.calls.push({ focus: p }); return true }
+    const v = await viewer({ root: r, cfg, browser: b })
+    for (const path of ['/__copy', '/', '/screens/home-page.html#menu-open@1024']) expect((await post(v.port, '/__focus', { path })).status).toBe(200)
+    expect(b.calls).toEqual([{ focus: '/__copy' }, { focus: '/' }, { focus: '/screens/home-page.html#menu-open@1024' }])
+    for (const path of ['https://evil.example/', '//evil.example', '/../x', '/screens/../../x.html', 3, '/__notes']) expect((await post(v.port, '/__focus', { path })).status).toBe(400)
+    expect(b.calls).toHaveLength(3)
+  })
+  it('POST /__cancel stops a Copy in 5 s during its wait: no copy, the badge goes, 409 {cancelled}', async () => {
+    const { r, cfg } = project()
+    const b = stubBrowser([page('Home')])
+    const badges = []
+    b.badge = async (_p, text) => badges.push(text)
+    const v = await viewer({ root: r, cfg, browser: b })
+    const t0 = Date.now()
+    const res = post(v.port, '/__copy', { screen: 'x', state: 'a', delay: 5 })
+    await new Promise((ok) => setTimeout(ok, 600))
+    expect(await (await post(v.port, '/__cancel', {})).json()).toEqual({ cancelled: 1 })
+    const got = await res
+    expect(got.status).toBe(409)
+    expect(await got.json()).toMatchObject({ cancelled: true })
+    expect(Date.now() - t0).toBeLessThan(2000)
+    expect(b.calls).toHaveLength(0)
+    expect(badges.at(-1)).toBeNull()
+    expect(await (await post(v.port, '/__cancel', {})).json()).toEqual({ cancelled: 0 })
+  })
+  it('the reload stream sends a change event before the reload, so pages can show it at once', async () => {
+    const { r, cfg } = project()
+    writeFileSync(join(r, 'design/screens/x.html'), screen(['a']))
+    const v = await viewer({ root: r, cfg, watch: true })
+    const ctl = new AbortController()
+    cleanup.push(() => ctl.abort())
+    const reader = (await fetch(`http://127.0.0.1:${v.port}/__reload`, { signal: ctl.signal })).body.getReader()
+    await new Promise((ok) => setTimeout(ok, 200))
+    writeFileSync(join(r, 'design/screens/x.html'), screen(['a', 'b']))
+    let text = ''
+    while (!text.includes('data: reload')) text += new TextDecoder().decode((await reader.read()).value)
+    expect(text.indexOf('event: change')).toBeGreaterThan(-1)
+    expect(text.indexOf('event: change')).toBeLessThan(text.indexOf('data: reload'))
+  })
+  it('notes: list the open notes of one screen, edit the text, delete one; the file stays readable by notes.mjs', async () => {
+    const { r, cfg } = project()
+    const v = await viewer({ root: r, cfg })
+    const ids = []
+    for (const st of ['a', 'b']) ids.push((await (await post(v.port, '/__notes', { ...note, state: st, note: `on ${st}` })).json()).id)
+    await post(v.port, '/__notes', { ...note, screen: 'other' })
+    const list = await (await fetch(`http://127.0.0.1:${v.port}/__notes?screen=x&list=1`)).json()
+    expect(list.list.map((n) => [n.id, n.state, n.text, n.tag, n.note])).toEqual([[ids[0], 'a', 'a', 'p', 'on a'], [ids[1], 'b', 'a', 'p', 'on b']])
+    expect((await post(v.port, '/__notes/edit', { id: ids[0], note: '  smaller  ' })).status).toBe(200)
+    expect((await post(v.port, '/__notes/delete', { id: ids[1] })).status).toBe(200)
+    expect(readNotes(r, cfg).filter((n) => n.screen === 'x').map((n) => [n.id, n.note, n.done])).toEqual([[ids[0], 'smaller', false]])
+    for (const [p, body] of [['/__notes/edit', { id: ids[0], note: '' }], ['/__notes/edit', { id: ids[0], note: 'x'.repeat(2001) }], ['/__notes/edit', { id: 3, note: 'x' }], ['/__notes/delete', {}]]) expect((await post(v.port, p, body)).status).toBe(400)
+    expect((await post(v.port, '/__notes/edit', { id: 'n-1-999', note: 'x' })).status).toBe(404)
+    expect((await post(v.port, '/__notes/delete', { id: 'n-1-999' })).status).toBe(404)
+  })
+})
+
 describe('notes', () => {
   it('notes live in .local/notes.json', async () => {
     const { r, cfg } = project()
@@ -456,6 +534,25 @@ describe('build error bar in the viewer (browser)', () => {
     await pg.locator('iframe.sd-frame').waitFor()
     await pg.waitForTimeout(500)
     expect(await bar.count()).toBe(0)
+  }, 60000)
+})
+
+describe('switching to the open tools tab (real browser)', () => {
+  it('focus finds the open Copy tab or viewer tab by its path, moves a viewer tab to the asked state, and opens a tab only when none is open', async () => {
+    const { r, cfg } = project()
+    writeFileSync(join(r, 'design/screens/x.html'), screen(['a', 'b']))
+    const v0 = await viewer({ root: r, cfg })
+    const b = await openBrowser({ root: r, cfg, dataDir: dataDir(), profileDir: mkdtempSync(join(tmpdir(), 'prof-')), headless: true, viewerOrigin: v0.url }); cleanup.push(() => b.close())
+    const own = () => b.context.pages().filter((p) => p.url().startsWith(v0.url)).map((p) => p.url().slice(v0.url.length))
+    const home = await b.context.newPage(); await home.goto(v0.url + '/')
+    expect(await b.focus('/__copy')).toBe(true)
+    expect(own().sort()).toEqual(['/', '/__copy'])
+    expect(await b.focus('/__copy')).toBe(true)
+    expect(own()).toHaveLength(2)
+    expect(await b.focus('/screens/x.html#b@1024')).toBe(true)
+    expect(own().sort()).toEqual(['/__copy', '/screens/x.html#b@1024'])
+    expect(await b.focus('/screens/x.html#a@1440')).toBe(true)
+    expect(own().sort()).toEqual(['/__copy', '/screens/x.html#a@1440'])
   }, 60000)
 })
 

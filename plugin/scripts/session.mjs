@@ -28,7 +28,8 @@ export function psCommand(pid) {
 export async function viewerAnswers(port, fetchFn = fetch) {
   try {
     const res = await fetchFn(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(2000) })
-    return res.ok && (await res.text()).includes('<title>Designs</title>')
+    // Designs: the title before 0.4.0, so a session started by an older version still counts.
+    return res.ok && /<title>(Screens|Designs)<\/title>/.test(await res.text())
   } catch { return false }
 }
 // A reused pid must not be mistaken for the session: its command line has to name session.mjs. Without
@@ -45,11 +46,12 @@ async function readSession(root, cfg) {
   try { s = JSON.parse(readFileSync(sessionFile(root, cfg), 'utf8')) } catch { return null }
   return Number.isInteger(s.pid) && alive(s.pid) && (await isOurSession(s)) ? s : null
 }
-const urls = (port) => `Viewer http://127.0.0.1:${port}/  Copy window http://127.0.0.1:${port}/__copy`
+const urls = (port) => `Viewer http://127.0.0.1:${port}/  Copy tab http://127.0.0.1:${port}/__copy`
+const NEXT = 'Next: open your app in a new tab of that browser window, then use the Copy tab.'
 
 async function start(root, cfg, data, headless) {
   const running = await readSession(root, cfg)
-  if (running) { console.log(urls(running.port)); return 0 }
+  if (running) { console.log(urls(running.port)); console.log(NEXT); return 0 }
   mkdirSync(localDir(root, cfg), { recursive: true })
   rmSync(sessionFile(root, cfg), { force: true })
   const log = join(localDir(root, cfg), 'session.log')
@@ -62,7 +64,7 @@ async function start(root, cfg, data, headless) {
   const until = Date.now() + WAIT_MS
   while (Date.now() < until) {
     const s = await readSession(root, cfg)
-    if (s) { console.log(urls(s.port)); return 0 }
+    if (s) { console.log(urls(s.port)); console.log(NEXT); return 0 }
     if (exited !== null) break
     await sleep(100)
   }
@@ -114,8 +116,9 @@ export async function startSession({ root, cfg, data, headless = false, openPage
     targetIdOf: (...a) => browser.targetIdOf(...a),
     badge: (...a) => browser.badge(...a),
     toast: (...a) => browser.toast(...a),
+    focus: (...a) => (browser ? browser.focus(...a) : false),
   }
-  // Names from the Copy window; the chord reuses them.
+  // Names from the Copy tab; the chord reuses them.
   let preset = null
   const view = await createViewServer({ root, cfg, dataDir: data, browser: handle, onPreset: (p) => { preset = p } })
   const origin = `http://127.0.0.1:${view.port}`
@@ -125,7 +128,7 @@ export async function startSession({ root, cfg, data, headless = false, openPage
   const onChord = async (page) => {
     const p = preset
     if (!p) {
-      console.warn('Chord ignored: fill in a screen and state in the Copy window first.')
+      console.warn('Chord ignored: fill in a screen and a name in the Copy tab first.')
       return browser.toast(page, 'Fill in a screen and state in the Copy tab first')
     }
     try {

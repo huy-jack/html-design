@@ -208,5 +208,18 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
       setTimeout(() => el.remove(), wait)
     }, [addLabel.toString(), text, LABEL_CSS, ms]).catch(() => {})
 
-  return { context, appPages, copyFrom, resize, badge, toast, cdpPort, targetIdOf, close: () => context.close() }
+  // The plugin's own tabs (home, a screen, the Copy tab): a link between them switches to the open tab
+  // instead of opening one more. A screen goes into the open viewer tab; a new tab only when none is open.
+  async function focus(path) {
+    if (!viewerOrigin) return false
+    const want = new URL(path, viewerOrigin)
+    const pathOf = (p) => { try { const u = new URL(p.url()); return u.origin === want.origin ? u.pathname : null } catch { return null } }
+    const own = context.pages().filter((p) => pathOf(p) !== null)
+    const page = own.find((p) => pathOf(p) === want.pathname) ?? (want.pathname === '/__copy' ? null : own.find((p) => pathOf(p) !== '/__copy')) ?? (await context.newPage())
+    if (page.url() !== want.href) await page.goto(want.href, { waitUntil: 'domcontentloaded', timeout: 15000 })
+    await page.bringToFront()
+    return true
+  }
+
+  return { context, appPages, copyFrom, resize, badge, toast, focus, cdpPort, targetIdOf, close: () => context.close() }
 }
