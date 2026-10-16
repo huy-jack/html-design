@@ -244,6 +244,12 @@ claude plugin validate ./plugin
 - `plugin/` is the only folder users install. It has no `package.json`: runtime packages load from the project or from the plugin data folder.
 - Tests live in `test/`. A fixture app with a login, images and fonts behind the login is in `test/fixture/`.
 
+### Reviewing the plugin's own UI
+
+1. Take screenshots of a project with screens: `node .claude/ux/shoot.mjs <project> ux-shots`.
+2. Take screenshots of the first run: `node .claude/ux/shoot.mjs --empty ux-shots`.
+3. Ask Claude to use the ui-ux-reviewer agent on `ux-shots` (git-ignored: the shots show your app).
+
 
 ## License
 
