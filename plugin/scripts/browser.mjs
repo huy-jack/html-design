@@ -70,6 +70,7 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
   // resize) and leave the page drawn wider than its window. keepPointer false: a scripted copy (see freezePage).
   async function copyFrom(page, { screen, state, label, replace = false, keepPointer = true }) {
     let clean_warn = null
+    await layOut(page)
     await settlePage(page)
     await freezePage(page, { keepPointer })
     const [w] = await viewWidth(page)
@@ -126,6 +127,23 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
     for (const until = Date.now() + ms; Date.now() < until; await new Promise((r) => setTimeout(r, 50))) if ((await viewWidth(p).catch(() => [0]))[0] === width) return true
     return false
   }
+  // A tab behind keeps its old size after the window changed: it is not laid out. Bring it to the front and
+  // wait (at most 2 s), so a copy is never stored at a stale width. A page at our emulated width is laid out.
+  async function layOut(page) {
+    if (emulated.has(page)) return
+    let want
+    try {
+      const s = await cdpOf(page)
+      const { windowId } = await s.send('Browser.getWindowForTarget')
+      const { bounds } = await s.send('Browser.getWindowBounds', { windowId })
+      const [inner, outer] = await page.evaluate(() => [window.innerWidth, window.outerWidth])
+      if (outer === bounds.width) return
+      want = bounds.width - (outer - inner)
+    } catch { return }
+    await page.bringToFront()
+    await reaches(page, want, 2000)
+  }
+
   // Resizes the real window (all app tabs share it), so the page follows the window as before. The window
   // bounds decide: Chrome lays out only the tab in front, so a tab behind reports its old size for seconds.
   // A width the window cannot reach (its minimum is about 500 px on macOS) falls back to an emulated size.

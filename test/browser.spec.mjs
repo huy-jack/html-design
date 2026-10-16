@@ -131,6 +131,26 @@ describe('browser part', () => {
     expect(await second.evaluate(() => [window.innerWidth, window.outerWidth])).toEqual([1024, 1024])
   })
 
+  it('a copy of a tab that reports a stale size brings it to the front first, so it is stored at the window width', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const page = b.appPages()[0]; await page.goto(fx.a + '/login')
+    await windowWidth(b, page, 1024)
+    await stale(page, 1300)
+    const toFront = page.bringToFront.bind(page)
+    let fronts = 0
+    page.bringToFront = async () => { fronts += 1; await toFront(); await stale(page, null) }
+    const out = await b.copyFrom(page, { screen: 'Fixture', state: 'behind' })
+    expect(out.status).toBe(201)
+    expect(fronts).toBe(1)
+    expect(out.warnings.join(' ')).not.toContain('1300')
+    expect(readFileSync(join(r, 'design/screens/fixture.html'), 'utf8')).toMatch(/id="behind"[^>]*data-width="1024"|data-width="1024"[^>]*id="behind"/)
+    // A tab that is laid out is not brought to the front.
+    await b.copyFrom(page, { screen: 'Fixture', state: 'front' })
+    expect(fronts).toBe(1)
+  })
+
   it('appPages excludes viewer pages (Review Focus 3)', async () => {
     const fx = await startFixture(); cleanup.push(() => fx.close())
     const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
