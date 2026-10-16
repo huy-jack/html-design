@@ -24,6 +24,21 @@ function dataDir() {
   return d
 }
 const profile = () => mkdtempSync(join(tmpdir(), 'prof-'))
+// A background tab in a headful window keeps its old size for seconds after the window changes. Headless
+// gives each tab its own window, so the test makes the page report that old size; null ends it.
+const stale = (page, w) => page.evaluate((w) => {
+  for (const k of ['innerWidth', 'outerWidth']) {
+    const d = Object.getOwnPropertyDescriptor(window, k)
+    if (!d.get.__real) Object.defineProperty(window, k, { configurable: true, get: Object.assign(function () { return window.__stale ?? d.get.call(window) }, { __real: true }) })
+  }
+  window.__stale = w ?? undefined
+}, w)
+async function windowWidth(b, page, width) {
+  const s = await b.context.newCDPSession(page)
+  const { windowId } = await s.send('Browser.getWindowForTarget')
+  await s.send('Browser.setWindowBounds', { windowId, bounds: { width } })
+  await s.detach()
+}
 
 let cleanup = []
 afterEach(async () => { for (const f of cleanup.reverse()) await f(); cleanup = [] })
@@ -85,6 +100,19 @@ describe('browser part', () => {
       expect(await widths(first)).toEqual([w, w])
       expect(await widths(second)).toEqual([w, w])
     }
+  })
+
+  it('resize trusts the window bounds: a tab that reports a stale size gets no emulated size', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const page = b.appPages()[0]; await page.goto(fx.a + '/login')
+    await stale(page, 1200)
+    await b.resize(1440)
+    await stale(page, null)
+    // The user then changes the window: the page follows it, it does not stay at an emulated 1440.
+    await windowWidth(b, page, 1100)
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1100)
   })
 
   it('appPages excludes viewer pages (Review Focus 3)', async () => {

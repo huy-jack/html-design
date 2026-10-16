@@ -114,29 +114,53 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
     if (!sessions.has(p)) sessions.set(p, await context.newCDPSession(p))
     return sessions.get(p)
   }
-  // Resizes the real window (all app tabs share it), so the page follows the window as before. A width the
-  // window cannot reach (its minimum is about 500 px on macOS) falls back to an emulated page size.
-  async function resize(width) {
-    const windows = new Set()
-    for (const p of appPages()) {
+  // The width each page is emulated at, while it is.
+  const emulated = new WeakMap()
+  const emulate = async (p, width) => {
+    const [, h] = await viewWidth(p)
+    await (await cdpOf(p)).send('Emulation.setDeviceMetricsOverride', { width, height: h, deviceScaleFactor: 0, mobile: false })
+    emulated.set(p, width)
+  }
+  // Polls until the page is width wide; false after ms.
+  const reaches = async (p, width, ms) => {
+    for (const until = Date.now() + ms; Date.now() < until; await new Promise((r) => setTimeout(r, 50))) if ((await viewWidth(p).catch(() => [0]))[0] === width) return true
+    return false
+  }
+  // Resizes the real window (all app tabs share it), so the page follows the window as before. The window
+  // bounds decide: Chrome lays out only the tab in front, so a tab behind reports its old size for seconds.
+  // A width the window cannot reach (its minimum is about 500 px on macOS) falls back to an emulated size.
+  // front: that app tab comes to the front first and is laid out at the new width before this returns.
+  async function resize(width, { front = null } = {}) {
+    if (front) await front.bringToFront()
+    const pages = appPages().sort((a, b) => (b === front) - (a === front))
+    const windows = new Map()
+    const noWindow = []
+    for (const p of pages) {
       const s = await cdpOf(p)
       await s.send('Emulation.clearDeviceMetricsOverride')
+      emulated.delete(p)
+      let windowId = null
       try {
-        const { windowId } = await s.send('Browser.getWindowForTarget')
-        if (windows.has(windowId)) continue
-        windows.add(windowId)
+        ;({ windowId } = await s.send('Browser.getWindowForTarget'))
+        if (windows.has(windowId)) { windows.get(windowId).push(p); continue }
+        windows.set(windowId, [p])
         const [inner, outer] = await p.evaluate(() => [window.innerWidth, window.outerWidth])
         await s.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } })
         await s.send('Browser.setWindowBounds', { windowId, bounds: { width: width + outer - inner } })
-      } catch (e) { console.error(`Window resize failed: ${e.message}`) }
+        const { bounds } = await s.send('Browser.getWindowBounds', { windowId })
+        if (bounds.width === width + outer - inner) windows.set(windowId, [])
+      } catch (e) {
+        console.error(`Window resize failed: ${e.message}`)
+        // A window that failed keeps its pages listed, so they get the emulated size.
+        if (windowId === null) noWindow.push(p)
+      }
     }
-    for (const p of appPages()) {
-      let w = 0
-      for (let i = 0; i < 20 && (w = (await viewWidth(p))[0]) !== width; i++) await new Promise((r) => setTimeout(r, 50))
-      if (w === width) continue
-      const [, h] = await viewWidth(p)
-      await (await cdpOf(p)).send('Emulation.setDeviceMetricsOverride', { width, height: h, deviceScaleFactor: 0, mobile: false })
-    }
+    // Windows that did not reach the width hold their pages here; a page with no window is judged by itself.
+    for (const ps of windows.values()) for (const p of ps) await emulate(p, width)
+    for (const p of noWindow) if (!(await reaches(p, width, 1000))) await emulate(p, width)
+    if (front && !(await reaches(front, width, 3000))) console.error(`The app tab is not ${width}px wide after the resize.`)
+    // The other tabs only get a moment: a tab behind may keep its old size until it is shown.
+    await Promise.all(appPages().map((p) => reaches(p, width, 1000)))
   }
 
   // What the tools show in an app tab: the countdown badge and the chord's toast. Marked data-hd-tool, so a
