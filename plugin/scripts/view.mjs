@@ -972,7 +972,7 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
         const byState = {}
         if (screen) for (const x of open) if (x.screen === screen) { const id = x.state.split('@')[0]; byState[id] = (byState[id] ?? 0) + 1 }
         // &list=1: the notes themselves, for the viewer's notes list.
-        const list = screen && params.get('list') ? open.filter((x) => x.screen === screen).map(({ id, state, width, theme, text, tag, note }) => ({ id, state, width, theme, text, tag, note })) : null
+        const list = screen && params.get('list') ? open.filter((x) => x.screen === screen).map(({ id, state, width, theme, path, text, tag, note }) => ({ id, state, width, theme, path, text, tag, note })) : null
         return json(res, 200, screen ? { open: open.length, byState, ...(list ? { list } : {}) } : { open: open.length })
       } catch (e) {
         return json(res, 200, { open: 0, error: e.message })

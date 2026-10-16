@@ -203,8 +203,8 @@
   // The viewer's look: the same tokens as the plugin's home page and Copy tab. Light by default, dark when the
   // computer asks for it; data-ui on .sd-app is the user's own choice (key hd-ui). The design stays the brightest
   // thing on screen: tool colors stay outside the frame, except the Pick outline and tag while Pick is on.
-  var UI_LIGHT = '--bg:#ffffff;--chrome:#f6f7f9;--raise:#ffffff;--hover:#eceef2;--line:#e4e4e7;--edge:#8e8e98;--ink:#18181b;--dim:#52525b;--mute:#63636b;--accent:#2563eb;--accent-h:#1d4ed8;--accent-p:#1e40af;--link:#2563eb;--sel:#eff4ff;--sel-ink:#1e40af;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--bad-bg:#fef2f2;--stage:#e9ebef;--ring:#8e8e98;--pick:#e11d74;color-scheme:light'
-  var UI_DARK = '--bg:#111113;--chrome:#18181b;--raise:#1f1f23;--hover:#2a2a2e;--line:#2a2a2e;--edge:#71717a;--ink:#f4f4f5;--dim:#a1a1aa;--mute:#8b8b94;--link:#7aa7ff;--sel:#1c2a4a;--sel-ink:#f4f4f5;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--bad-bg:#2c1515;--stage:#0b0b0d;--ring:#71717a;color-scheme:dark'
+  var UI_LIGHT = '--bg:#ffffff;--chrome:#f6f7f9;--raise:#ffffff;--hover:#eceef2;--line:#e4e4e7;--edge:#8e8e98;--ink:#18181b;--dim:#52525b;--mute:#63636b;--accent:#2563eb;--accent-h:#1d4ed8;--accent-p:#1e40af;--link:#2563eb;--sel:#eff4ff;--sel-ink:#1e40af;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--bad-bg:#fef2f2;--stage:#e9ebef;--ring:#8e8e98;--pick:#e11d74;--chip:#ffffff;--chip-edge:#8e8e98;--off:#e4e4e7;--off-ink:#63636b;color-scheme:light'
+  var UI_DARK = '--bg:#111113;--chrome:#18181b;--raise:#1f1f23;--hover:#2a2a2e;--line:#2a2a2e;--edge:#71717a;--ink:#f4f4f5;--dim:#a1a1aa;--mute:#8b8b94;--link:#7aa7ff;--sel:#1c2a4a;--sel-ink:#f4f4f5;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--bad-bg:#2c1515;--stage:#0b0b0d;--ring:#71717a;--chip:#2a2a2e;--chip-edge:#71717a;--off:#2a2a2e;--off-ink:#a1a1aa;color-scheme:dark'
   var MONO = '"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace'
   var CSS =
     "@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap');" +
@@ -233,14 +233,16 @@
     '.sd-foot{border-top:1px solid var(--line);padding:8px 16px;color:var(--dim);font-size:12px;flex:none}.sd-foot:empty{display:none}' +
     '.sd-main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}' +
     '.sd-bar{height:56px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--chrome)}' +
-    '.sd-title{display:flex;flex-direction:column;line-height:1.3;min-width:60px;flex:1}.sd-title b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.sd-title{display:flex;flex-direction:column;line-height:1.3;min-width:160px;flex:1}.sd-title b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '.sd-title span{color:var(--dim);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '.sd-bar button,.sd-bar select{height:34px;min-width:34px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 8px;border-radius:8px;color:var(--ink);border:1px solid var(--edge);background:var(--raise);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}' +
     '.sd-bar button:hover{background:var(--hover)}.sd-bar button:disabled{opacity:.45;cursor:not-allowed}' +
     '.sd-bar [data-sd=pick][aria-pressed=true]{background:var(--pick);border-color:var(--pick);color:#fff}' +
     '.sd-seg{display:inline-flex;padding:2px;background:var(--chrome);border:1px solid var(--edge);border-radius:8px;gap:2px}' +
     '.sd-bar .sd-seg button{height:28px;border:0;background:none;color:var(--dim);padding:0 8px}.sd-bar .sd-seg button:hover{color:var(--ink);background:var(--hover)}' +
-    '.sd-bar .sd-seg button[aria-pressed=true]{background:var(--accent);color:#fff}' +
+    // A pressed option is a raised chip; blue fill is only for the one main action.
+    '.sd-bar .sd-seg button[aria-pressed=true],.sd-zoom button[aria-pressed=true]{background:var(--chip);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--chip-edge)}' +
+    '.sd-seglab{align-self:center;padding:0 4px 0 8px;color:var(--dim);font-size:12px;font-weight:500}' +
     '.sd-vr{width:1px;height:24px;background:var(--line);flex:none}' +
     '.sd-bar .sd-plain{border-color:transparent;background:none;padding:0}.sd-count{font:500 12px ' + MONO + ';color:var(--dim);min-width:40px;text-align:center}' +
     '.sd-bar [data-sd=notes].sd-has{color:var(--warn)}.sd-hint{color:var(--warn);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
@@ -257,13 +259,14 @@
     '.sd-cap{display:flex;align-items:center;justify-content:space-between;gap:16px;color:var(--dim);font-size:12px;min-height:28px;margin:0 auto 8px;overflow:hidden}.sd-cap b{font:500 12px ' + MONO + ';color:var(--ink)}' +
     '.sd-capl{display:flex;align-items:center;gap:8px}[data-sd=source]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '.sd-zoom{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--edge);border-radius:8px;background:var(--chrome)}' +
-    '.sd-zoom button{height:24px;padding:0 8px;border:0;border-radius:6px;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:500;cursor:pointer}.sd-zoom button[aria-pressed=true]{background:var(--accent);color:#fff}' +
+    '.sd-zoom button{height:24px;padding:0 8px;border:0;border-radius:6px;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:500;cursor:pointer}' +
     '.sd-fit{margin:0 auto;position:relative;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--ring),0 12px 32px -12px rgba(0,0,0,.3);background:#fff}' +
     '.sd-frame{position:absolute;top:0;left:0;border:0;background:#fff;transform-origin:0 0}' +
     '.sd-keys{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 16px;border-top:1px solid var(--line);color:var(--dim);font-size:12px;flex:none}' +
     '.sd-keys>span{display:flex;gap:4px;align-items:center}' +
     '.sd-app .sd-btn{height:36px;padding:0 12px;border-radius:8px;border:1px solid var(--edge);background:var(--raise);color:var(--ink);font:inherit;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}.sd-app .sd-btn:hover{background:var(--hover)}' +
     '.sd-app .sd-primary{background:var(--accent);border-color:var(--accent);color:#fff}.sd-app .sd-primary:hover{background:var(--accent-h)}.sd-app .sd-primary:active{background:var(--accent-p)}.sd-app .sd-btn:disabled{opacity:.6;cursor:default}' +
+    '.sd-app .sd-primary:disabled{background:var(--off);border-color:var(--off);color:var(--off-ink);opacity:1}' +
     // The dock: a row under the stage for the note box, the notes list and the toast. The stage gets shorter,
     // so these never cover the design.
     '.sd-dock{flex:none;display:grid;gap:8px;justify-items:center;padding:12px 16px;border-top:1px solid var(--line);background:var(--chrome)}.sd-dock:not(:has(> :not([hidden]))){display:none}' +
@@ -273,7 +276,9 @@
     '.sd-notebox [data-sd=note-error]{width:100%;margin:0;color:var(--bad);font-size:13px;font-weight:500}' +
     '.sd-notebox [data-sd=discard]{width:100%;display:flex;gap:8px;align-items:center}.sd-notebox [data-sd=discard] span{flex:1;font-weight:600}' +
     '.sd-toast{width:min(720px,100%);display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--ink);font-weight:500}' +
-    '.sd-picktag{position:fixed;z-index:19;pointer-events:none;background:var(--pick);color:#fff;font-size:12px;font-weight:600;line-height:20px;padding:0 8px;border-radius:6px;white-space:nowrap}' +
+    '.sd-pin{position:fixed;z-index:19;pointer-events:none;min-width:20px;height:20px;padding:0 4px;border-radius:999px;background:var(--pick);color:#fff;font-size:12px;font-weight:600;line-height:20px;text-align:center;box-shadow:0 0 0 2px #fff}' +
+    '.sd-sidefoot{border-top:1px solid var(--line);padding:4px 8px;flex:none}.sd-sidefoot button{height:32px;padding:0 8px;border:0;border-radius:8px;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:500;cursor:pointer}.sd-sidefoot button:hover{background:var(--hover);color:var(--ink)}' +
+    '.sd-nrow .sd-nnum{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-right:8px;border-radius:999px;background:var(--pick);color:#fff;font-size:12px;font-weight:600}' +
     '.sd-nlist{width:min(720px,100%);max-height:40vh;overflow:auto;color:var(--ink)}' +
     '.sd-nlist h3{font-size:16px;font-weight:600;padding:2px 8px 8px;margin:0}.sd-nlist>p{margin:0;padding:8px;color:var(--dim);font-size:13px}' +
     '.sd-nrow{padding:8px 8px;border-top:1px solid var(--line)}.sd-ngo{background:none;border:0;padding:0;color:var(--link);font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-align:left}' +
@@ -281,12 +286,16 @@
     '.sd-nact{display:flex;gap:8px}.sd-nact .sd-btn{height:30px;padding:0 8px;font-size:13px}' +
     '.sd-nlist .sd-nfoot{border-top:1px solid var(--line);margin-top:4px}' +
     'body{margin:0}' +
-    '@media (max-width:1280px){.sd-bar .sd-seg svg{display:none}}' +
+    '[data-sd=cap-note],[data-sd=cap-count]{display:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}[data-sd=cap-count]{font:500 12px ' + MONO + ';color:var(--ink)}' +
+    // Below 1280 px the state title keeps its room: the second line and 1/9 go to the caption, the arrows go (keys and list cover them).
+    '@media (max-width:1280px){.sd-bar .sd-seg svg{display:none}.sd-bar [data-sd=prev],.sd-bar [data-sd=next],.sd-bar .sd-count,.sd-bar .sd-vrnav,.sd-title span,.sd-seglab{display:none}[data-sd=cap-note],[data-sd=cap-count]{display:inline}}' +
     '@media (max-width:900px){.sd-app,.sd-app.sd-nolist{grid-template-columns:minmax(0,1fr)}.sd-side{display:none}[data-sd=source]{display:none}.sd-stage{padding:16px}.sd-bar [data-sd=state-pick]{display:inline-flex}.sd-bar [data-sd=hide-list],.sd-bar .sd-title{display:none}.sd-bar .sd-homebar{display:grid}}'
 
   // Added to the frame's own page only: never part of a screen file or a match picture (render.mjs builds its own page).
   var PICK_CSS =
     '[data-sd-pick]{outline:2px dashed #e11d74 !important;outline-offset:-2px !important;cursor:crosshair !important}' +
+    // The picked element (note box open, or a notes-list row pointed at): solid, after the dashed hover so it wins.
+    '[data-sd-picked]{outline:2px solid #e11d74 !important;outline-offset:-2px !important}' +
     '[data-sd-picking] *{cursor:crosshair !important}' +
     '[data-sd-link]{cursor:pointer}[data-sd-flash]{outline:2px dashed #f59e0b !important;outline-offset:2px !important}'
   var STOPPED = 'Session stopped. Notes cannot be saved. In Claude Code, type /html-design start.'
@@ -327,6 +336,8 @@
     var scale = 1
     // The open note box's own handlers (set while a box is open).
     var askDiscard = null
+    // The note box's element, marked again after a notes-list row stops pointing elsewhere.
+    var boxMark = null
     var keepWriting = null
     var style = doc.createElement('style')
     style.textContent = CSS
@@ -432,11 +443,22 @@
       seg.appendChild(b)
       return b
     })
-    // The design's own light or dark (D); the tool's theme is the separate ui-theme button.
-    var themeBtn = doc.createElement('button')
-    themeBtn.type = 'button'
-    themeBtn.title = 'Design in dark (D)'
-    themeBtn.setAttribute('aria-label', 'Design in dark')
+    // The design's own light or dark (D), next to the widths. The tool's colors are a button in the side panel.
+    var designSeg = tagged('div', 'sd-seg', 'design-theme')
+    designSeg.setAttribute('role', 'group')
+    designSeg.setAttribute('aria-label', 'Design theme')
+    var designLab = el('span', 'sd-seglab')
+    designLab.textContent = 'Design:'
+    designSeg.appendChild(designLab)
+    var themeBtns = [['light', 'Light'], ['dark', 'Dark']].map(function (t) {
+      var b = doc.createElement('button')
+      b.type = 'button'
+      b.textContent = t[1]
+      b.title = 'Design in ' + t[0] + ' (D)'
+      b.setAttribute('data-theme', t[0])
+      designSeg.appendChild(b)
+      return b
+    })
     var pickBtn = button('', 'pick')
     pickBtn.innerHTML = ICON.pick + 'Pick'
     pickBtn.title = PICK_TITLE
@@ -454,11 +476,10 @@
     nextBtn.className = 'sd-plain'
     nextBtn.setAttribute('aria-label', 'Next')
     var uiBtn = button('', 'ui-theme')
-    uiBtn.className = 'sd-plain'
     var read = readLinks(doc)
     var links = read.links
     var handled = false
-    var parts = [hideBtn, title, status, linkWarn, statePick, seg, themeBtn]
+    var parts = [hideBtn, title, status, linkWarn, statePick, seg, designSeg]
     // Below 900 px the side list (and its link home) is gone: the bar has the way back.
     if (served) {
       var homeBar = el('a', 'sd-homebar', ICON.back)
@@ -469,14 +490,15 @@
       parts.unshift(homeBar)
     }
     if (served) parts = parts.concat([el('span', 'sd-vr'), pickBtn, notesBtn])
-    parts = parts.concat([el('span', 'sd-vr'), prevBtn, count, nextBtn, uiBtn])
+    parts = parts.concat([el('span', 'sd-vr sd-vrnav'), prevBtn, count, nextBtn])
     bar.append.apply(bar, parts)
     var stage = el('div', 'sd-stage')
     // Above the frame, never over it: a stopped session, a failed build, Pick on.
     var banners = el('div', 'sd-banners')
     var stoppedBar = tagged('div', 'sd-stopped', 'stopped', STOPPED)
     stoppedBar.hidden = true
-    var pickBar = tagged('div', 'sd-pickbar', 'pickbar', 'Pick is on. Click any part of the design to write a note. Press Esc or P to stop.')
+    var PICK_IDLE = 'Pick is on. Click any part of the design to write a note. Press Esc or P to stop.'
+    var pickBar = tagged('div', 'sd-pickbar', 'pickbar', PICK_IDLE)
     pickBar.hidden = true
     banners.append(stoppedBar, pickBar)
     var cap = el('div', 'sd-cap')
@@ -492,7 +514,9 @@
       zoomSeg.appendChild(b)
       return b
     })
-    capLeft.append(size, zoomSeg)
+    var capCount = tagged('span', '', 'cap-count')
+    var capNote = tagged('span', '', 'cap-note')
+    capLeft.append(size, zoomSeg, capCount, capNote)
     var source = el('span')
     source.setAttribute('data-sd', 'source')
     cap.append(capLeft, source)
@@ -504,14 +528,18 @@
     stage.append(banners, cap, fitBox)
     var nlist = tagged('div', 'sd-nlist', 'notes-list')
     nlist.hidden = true
-    var pickTag = tagged('span', 'sd-picktag', 'picktag', 'Click to add a note')
-    pickTag.hidden = true
+    // A numbered pin on the picked element, in the viewer's page over the scaled frame.
+    var pin = tagged('span', 'sd-pin', 'pin')
+    pin.hidden = true
+    var picked = null
     var dock = el('div', 'sd-dock')
     dock.appendChild(nlist)
     main.append(bar, stage, dock)
-    var keys = el('div', 'sd-keys', '<span><span class="sd-kbd">↑</span><span class="sd-kbd">↓</span>state</span><span><span class="sd-kbd">1</span><span class="sd-kbd">2</span><span class="sd-kbd">3</span>width</span><span><span class="sd-kbd">D</span>dark</span><span><span class="sd-kbd">L</span>list</span>' + (served ? '<span><span class="sd-kbd">P</span>pick</span>' : ''))
-    side.append(head, find, list, foot, keys)
-    app.append(side, main, pickTag)
+    var keys = el('div', 'sd-keys', '<span><span class="sd-kbd">↑</span><span class="sd-kbd">↓</span>state</span><span><span class="sd-kbd">1</span><span class="sd-kbd">2</span><span class="sd-kbd">3</span>width</span><span><span class="sd-kbd">D</span>design light/dark</span><span><span class="sd-kbd">L</span>list</span>' + (served ? '<span><span class="sd-kbd">P</span>pick</span>' : ''))
+    var sideFoot = el('div', 'sd-sidefoot')
+    sideFoot.appendChild(uiBtn)
+    side.append(head, find, list, foot, keys, sideFoot)
+    app.append(side, main, pin)
     doc.body.prepend(app)
     var notesBy = {}
     var filterText = ''
@@ -613,6 +641,14 @@
         row.setAttribute('data-sd-note', n.id)
         var id = n.state.split('@')[0]
         var s = states.filter(function (x) { return x.id === id })[0]
+        var num = el('span', 'sd-nnum')
+        num.textContent = String(items.indexOf(n) + 1)
+        // Pointing at a row marks its element when that state is on screen.
+        row.addEventListener('mouseenter', function () {
+          if (!current || id !== current.s.id || !frame.contentDocument || !Array.isArray(n.path)) return
+          mark(resolvePath(frame.contentDocument.body, n.path), items.indexOf(n) + 1)
+        })
+        row.addEventListener('mouseleave', function () { if (boxMark) mark(boxMark.el, boxMark.n); else unmark() })
         var where = el('button', 'sd-ngo')
         where.type = 'button'
         where.textContent = (n.text ? '"' + n.text + '"' : 'An area') + ' · ' + (s ? s.attrs['data-label'] || s.id : n.state) + ' · ' + n.width
@@ -646,7 +682,7 @@
           change('/__notes/delete', { id: n.id })
         })
         act.append(edit, del)
-        row.append(where, words, act)
+        row.append(num, where, words, act)
         nlist.appendChild(row)
       })
       var tip = el('p', 'sd-nfoot')
@@ -685,16 +721,18 @@
       banners.style.width = Math.round(w * k) + 'px'
       size.innerHTML = '<b>' + w + ' px</b>' + (k < 1 ? ' · shown at ' + Math.round(k * 100) + '%' : '')
       zoomBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-zoom') === zoom)) })
-      placeTag()
+      placePin()
     }
     // The bar for the state on screen. Step 2's same-page swap calls this too.
     function syncBar(s, width) {
       current = { s: s, width: width }
       titleText.textContent = s.attrs['data-label'] || s.id
       note.textContent = s.attrs['data-note'] || s.id
+      title.title = note.textContent
+      capNote.textContent = note.textContent
+      capCount.textContent = ids.indexOf(s.id) + 1 + '/' + ids.length
       widthBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(Number(b.dataset.width) === width)) })
-      themeBtn.innerHTML = ICON.contrast + '<span>' + (theme === 'dark' ? 'Dark' : 'Light') + '</span>'
-      themeBtn.setAttribute('aria-pressed', String(theme === 'dark'))
+      themeBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-theme') === theme)) })
       statePick.value = s.id
       prevBtn.disabled = stepState(ids, s.id, -1) === null
       nextBtn.disabled = stepState(ids, s.id, 1) === null
@@ -716,6 +754,8 @@
     }
     function closeNoteBox() {
       if (noteBox) noteBox.remove()
+      boxMark = null
+      unmark()
       noteBox = null
       noteInput = null
       askDiscard = null
@@ -749,36 +789,49 @@
       return Promise.reject(new Error('no clipboard'))
     }
     // After a saved note: the next step, which happens in Claude Code.
-    function showToast() {
+    // After a saved note: the next step, which happens in Claude Code. It stays until the user acts on it,
+    // writes another note, or turns Pick on again.
+    function removeToast() {
       var old = app.querySelector('[data-sd="toast"]')
       if (old) old.remove()
+    }
+    function showToast() {
+      removeToast()
       var t = tagged('div', 'sd-toast', 'toast')
       t.setAttribute('role', 'status')
       var words = el('span')
       words.textContent = 'Note saved. When you are done, say do my notes in Claude Code.'
-      var copy = button('Copy', 'toast-copy')
+      var acts = el('span', 'sd-nact')
+      var copy = button('Copy "do my notes"', 'toast-copy')
       copy.className = 'sd-btn'
-      copy.title = 'Copy "do my notes"'
       copy.addEventListener('click', function () {
-        copyText('do my notes').then(function () { copy.textContent = 'Copied' }, function () { copy.textContent = 'Type: do my notes' })
+        copyText('do my notes').then(function () {
+          copy.textContent = 'Copied'
+          root.setTimeout(function () { t.remove() }, 1500)
+        }, function () { copy.textContent = 'Type: do my notes' })
       })
-      t.append(words, copy)
+      var close = button('Close', 'toast-close')
+      close.className = 'sd-btn'
+      close.addEventListener('click', function () { t.remove() })
+      acts.append(copy, close)
+      t.append(words, acts)
       dock.appendChild(t)
-      root.setTimeout(function () { t.remove() }, 6000)
     }
     function openNoteBox(target) {
       if (stopped) return
       var path = elementPath(target, frame.contentDocument.body)
       if (!path || !path.length) return
       if (noteBox) return leaveNoteBox(function () { openNoteBox(target) })
-      var old = app.querySelector('[data-sd="toast"]')
-      if (old) old.remove()
+      removeToast()
       var at = current
       var text = noteText(target)
       var tag = target.tagName.toLowerCase()
       noteBox = doc.createElement('form')
       noteBox.className = 'sd-notebox'
-      var label = tagged('span', '', 'note-label', text ? 'Note on: "' + text + '"' : 'Note on this area')
+      var heading = nearestHeading(target)
+      var label = tagged('span', '', 'note-label', (text ? 'Note on: "' + text + '"' : 'Note on this area') + (heading && heading !== text ? ' in ' + heading : ''))
+      mark(target, (notesBy[at.s.id] || 0) + 1)
+      boxMark = { el: target, n: (notesBy[at.s.id] || 0) + 1 }
       var input = doc.createElement('input')
       noteInput = input
       input.setAttribute('aria-label', 'Note')
@@ -873,21 +926,53 @@
       if (hovered) hovered.removeAttribute('data-sd-pick')
       hovered = picking ? e.target : null
       if (hovered) hovered.setAttribute('data-sd-pick', '')
-      placeTag()
+      pickHint()
     }
-    // "Click to add a note" next to the outlined element, in the viewer's page (the frame is scaled).
-    function placeTag() {
-      if (!picking || !hovered || !hovered.getBoundingClientRect) { pickTag.hidden = true; return }
+    // The pink bar names what a click would note, so no tag covers the element's neighbours.
+    function pickHint() {
+      if (!hovered) return (pickBar.textContent = PICK_IDLE)
+      var t = noteText(hovered)
+      pickBar.textContent = 'Click to add a note on: ' + (t ? '"' + t + '"' : 'this area') + '. Press Esc or P to stop.'
+    }
+    // The element a note is about: a solid outline and a numbered pin at its corner.
+    function mark(target, n) {
+      unmark()
+      if (!target) return
+      picked = target
+      picked.setAttribute('data-sd-picked', '')
+      pin.textContent = String(n)
+      pin.hidden = false
+      placePin()
+    }
+    function unmark() {
+      if (picked) picked.removeAttribute('data-sd-picked')
+      picked = null
+      pin.hidden = true
+    }
+    function placePin() {
+      if (!picked || !picked.isConnected || !picked.getBoundingClientRect) { pin.hidden = true; return }
       var f = frame.getBoundingClientRect()
-      var r = hovered.getBoundingClientRect()
-      pickTag.hidden = false
-      var w = pickTag.offsetWidth
-      var box = { left: f.left + r.left * scale, right: f.left + r.right * scale, top: f.top + r.top * scale, bottom: f.top + r.bottom * scale }
-      var right = Math.min(f.right, stage.getBoundingClientRect().right)
-      // Beside the outlined element on its right; when there is no room, above it; else just under its top edge.
-      if (box.right + 8 + w <= right) { pickTag.style.left = box.right + 8 + 'px'; pickTag.style.top = Math.max(f.top + 4, box.top) + 'px'; return }
-      pickTag.style.left = Math.max(f.left + 4, Math.min(box.left, right - w - 4)) + 'px'
-      pickTag.style.top = (box.top - 26 >= f.top ? box.top - 26 : Math.min(box.bottom + 4, f.bottom - 26)) + 'px'
+      var r = picked.getBoundingClientRect()
+      pin.hidden = false
+      pin.style.left = Math.max(f.left, f.left + r.left * scale - 8) + 'px'
+      pin.style.top = Math.max(f.top, f.top + r.top * scale - 8) + 'px'
+    }
+    // The nearest heading before the element in its own block: a heading sibling, or a wrapper that holds only one.
+    function isHeading(e) { return /^H[1-6]$/.test(e.tagName) || (e.getAttribute && e.getAttribute('role') === 'heading') }
+    function headingOf(e) {
+      if (isHeading(e)) return e
+      var h = e.querySelector && e.querySelector('h1,h2,h3,h4,h5,h6,[role=heading]')
+      return h && noteText(h) === noteText(e) ? h : null
+    }
+    function nearestHeading(target) {
+      var top = frame.contentDocument.body
+      for (var cur = target; cur && cur !== top; cur = cur.parentElement) {
+        for (var sib = cur.previousElementSibling; sib; sib = sib.previousElementSibling) {
+          var h = headingOf(sib)
+          if (h && noteText(h)) return noteText(h).slice(0, 40)
+        }
+      }
+      return ''
     }
     function markLinks(d, s, width) {
       var lost = []
@@ -972,6 +1057,7 @@
         if (picking) d.documentElement.setAttribute('data-sd-picking', '')
         d.addEventListener('click', onFrameClick, true)
         d.addEventListener('mouseover', onFrameHover)
+        d.addEventListener('scroll', placePin, true)
         d.addEventListener('keydown', onKey)
       }
       frame.srcdoc = buildStateDoc(s, { theme: theme, base: root.location.href.split('#')[0], width: h.width })
@@ -987,6 +1073,7 @@
     function setPick(on) {
       if (!on && noteBox) return leaveNoteBox(function () { setPick(false) })
       picking = on && !stopped
+      if (picking) removeToast()
       saveView()
       pickBtn.setAttribute('aria-pressed', String(picking))
       pickBar.hidden = !picking
@@ -999,6 +1086,7 @@
         hovered.removeAttribute('data-sd-pick')
         hovered = null
       }
+      pickHint()
       fit()
     }
     function setList(hidden) {
@@ -1027,9 +1115,8 @@
     }
     function uiShow() {
       var d = uiDark()
-      uiBtn.innerHTML = d ? ICON.sun : ICON.moon
-      uiBtn.title = d ? 'Use the light theme for this tool' : 'Use the dark theme for this tool'
-      uiBtn.setAttribute('aria-label', uiBtn.title)
+      uiBtn.textContent = 'Tool colors: ' + (d ? 'Dark' : 'Light')
+      uiBtn.title = 'Tool colors (not your design)'
     }
     search.addEventListener('input', function () { fill(search.value.trim().toLowerCase()) })
     search.addEventListener('keydown', function (e) {
@@ -1047,7 +1134,7 @@
       })
     })
     statePick.addEventListener('change', function () { go(statePick.value, current ? current.width : WIDTHS[0]) })
-    themeBtn.addEventListener('click', toggleTheme)
+    themeBtns.forEach(function (b) { b.addEventListener('click', function () { if (b.getAttribute('data-theme') !== theme) toggleTheme() }) })
     hideBtn.addEventListener('click', function () { setList(!app.classList.contains('sd-nolist')) })
     uiBtn.addEventListener('click', function () {
       var t = uiDark() ? 'light' : 'dark'
@@ -1059,8 +1146,13 @@
     nextBtn.addEventListener('click', function () { var to = stepState(ids, current.s.id, 1); if (to) go(to, current.width) })
     pickBtn.addEventListener('click', function () { setPick(!picking) })
     notesBtn.addEventListener('click', function () { toggleList() })
-    frame.addEventListener('mouseleave', function () { pickTag.hidden = true })
+    frame.addEventListener('mouseleave', function () {
+      if (hovered) hovered.removeAttribute('data-sd-pick')
+      hovered = null
+      pickHint()
+    })
     root.addEventListener('resize', fit)
+    stage.addEventListener('scroll', placePin)
     // The dock and the banners change the stage's height.
     if (root.ResizeObserver) new root.ResizeObserver(function () { fit() }).observe(stage)
     doc.addEventListener('keydown', onKey)

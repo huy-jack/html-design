@@ -17,7 +17,7 @@ function project() {
   writeConfig(r, { css: 'app.css', themeVars: [] })
   makeSkeleton(r, readConfig(r))
   const cfg = readConfig(r)
-  const states = [['a', 'Alpha', '<main><p id="one">Update details</p><p id="two">Second</p></main>'], ['b', 'Beta', '<p>b</p>'], ['c', 'Gamma', '<p>c</p>']]
+  const states = [['a', 'Alpha', '<main><section><h2>Billing</h2><p id="one">Update details</p></section><p id="two">Second</p></main>'], ['b', 'Beta', '<p>b</p>'], ['c', 'Gamma', '<p>c</p>']]
   writeFileSync(join(r, 'design/screens/x.html'), serializeScreen({ screen: 'x', states: states.map(([id, label, html]) => ({ id, attrs: { 'data-label': label }, html })) }))
   return { r, cfg }
 }
@@ -72,9 +72,11 @@ describe('Pick mode', () => {
     expect(await pg.locator(q('pick')).getAttribute('aria-pressed')).toBe('true')
     expect(await pg.locator(q('pick')).evaluate((b) => getComputedStyle(b).backgroundColor)).toBe('rgb(225, 29, 116)')
     expect(await text(pg, q('pickbar'))).toBe('Pick is on. Click any part of the design to write a note. Press Esc or P to stop.')
+    // The hint names the element in the pink bar, so nothing covers the element's neighbours.
     await frame.locator('#one').hover()
-    await pg.locator(q('picktag')).waitFor({ state: 'visible' })
-    expect(await text(pg, q('picktag'))).toBe('Click to add a note')
+    await pg.waitForFunction(() => /Update details/.test(document.querySelector('[data-sd="pickbar"]').innerText))
+    expect(await text(pg, q('pickbar'))).toBe('Click to add a note on: "Update details". Press Esc or P to stop.')
+    expect(await pg.locator(q('picktag')).count()).toBe(0)
     expect(await frame.locator('#one').evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('dashed')
     await pg.keyboard.press('Escape')
     expect(await pg.locator(q('pick')).getAttribute('aria-pressed')).toBe('false')
@@ -83,11 +85,15 @@ describe('Pick mode', () => {
 })
 
 describe('note box', () => {
-  it('names the element, asks before it drops typed text (another click, Esc), and Keep writing keeps it', async () => {
+  it('names the element and its nearest heading, marks it with a solid outline and a pin, asks before it drops typed text', async () => {
     const { pg, frame } = await open()
     await pg.keyboard.press('p')
     await frame.locator('#one').click()
-    expect(await text(pg, q('note-label'))).toBe('Note on: "Update details"')
+    expect(await text(pg, q('note-label'))).toBe('Note on: "Update details" in Billing')
+    expect(await frame.locator('#one').evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineColor, getComputedStyle(el).outlineWidth])).toEqual(['solid', 'rgb(225, 29, 116)', '2px'])
+    await frame.locator('#two').hover()
+    expect(await frame.locator('#one').evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid')
+    expect(await text(pg, q('pin'))).toBe('1')
     await pg.fill(q('note-input'), 'bigger please')
     // The box takes its own row under the design, so it never covers the frame.
     const stageBottom = await pg.locator('.sd-stage').evaluate((el) => el.getBoundingClientRect().bottom)
@@ -96,13 +102,15 @@ describe('note box', () => {
     expect(await text(pg, q('discard'))).toContain('Discard this note?')
     await pg.click(q('keep'))
     expect(await pg.inputValue(q('note-input'))).toBe('bigger please')
-    expect(await text(pg, q('note-label'))).toBe('Note on: "Update details"')
+    expect(await text(pg, q('note-label'))).toBe('Note on: "Update details" in Billing')
     await pg.focus(q('note-input'))
     await pg.keyboard.press('Escape')
     expect(await pg.locator(q('discard')).isVisible()).toBe(true)
     await pg.click(q('discard-yes'))
     expect(await pg.locator('.sd-notebox').count()).toBe(0)
-    // An empty box closes at once.
+    expect(await pg.locator(q('pin')).isHidden()).toBe(true)
+    expect(await frame.locator('#one').evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none')
+    // An empty box closes at once. No heading before it in its own block: the label has none.
     await frame.locator('#two').click()
     expect(await text(pg, q('note-label'))).toBe('Note on: "Second"')
     await pg.keyboard.press('Escape')
@@ -144,11 +152,28 @@ describe('note box', () => {
     expect(await pg.locator(q('toast')).evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(stageBottom)
     expect(await pg.locator('.sd-notebox').count()).toBe(0)
     expect(readNotes(r, cfg).map((n) => [n.state, n.text, n.note])).toEqual([['a', 'Update details', 'bigger please']])
+    expect(await text(pg, q('toast-copy'))).toBe('Copy "do my notes"')
+    // It stays until the user acts.
+    await pg.waitForTimeout(6500)
+    expect(await pg.locator(q('toast')).isVisible()).toBe(true)
     await pg.click(q('toast-copy'))
     expect(await pg.evaluate(() => navigator.clipboard.readText())).toBe('do my notes')
     await pg.waitForFunction(() => document.querySelector('[data-sd="notes"]').innerText === '1 note')
     expect(await pg.locator(q('notes')).evaluate((b) => b.tagName)).toBe('BUTTON')
     expect(await text(pg, '[data-sd-state="a"] .sd-ncount')).toBe('1')
+  }, 30000)
+
+  it('the toast also goes when Pick is turned on again', async () => {
+    const { pg, frame } = await open()
+    await pg.keyboard.press('p')
+    await frame.locator('#one').click()
+    await pg.fill(q('note-input'), 'x')
+    await pg.press(q('note-input'), 'Enter')
+    await pg.locator(q('toast')).waitFor({ state: 'visible' })
+    await pg.keyboard.press('p')
+    expect(await pg.locator(q('toast')).count()).toBe(1)
+    await pg.keyboard.press('p')
+    expect(await pg.locator(q('toast')).count()).toBe(0)
   }, 30000)
 })
 
@@ -169,6 +194,10 @@ describe('notes list', () => {
     expect(await rows.first().innerText()).toContain('"Update details"')
     expect(await rows.first().innerText()).toContain('Alpha')
     expect(await rows.first().innerText()).toContain('bigger')
+    // Pointing at a row marks its element on the design (it is on the state shown).
+    await rows.first().hover()
+    expect(await pg.frameLocator('iframe.sd-frame').locator('section').evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid')
+    expect(await text(pg, q('pin'))).toBe('1')
     await rows.first().locator(q('note-edit')).click()
     await rows.first().locator('input').fill('much bigger')
     await rows.first().locator(q('note-save')).click()
@@ -204,6 +233,36 @@ describe('viewer states', () => {
     writeFileSync(join(r, 'design/screens/x.html'), serializeScreen({ screen: 'x', states: [{ id: 'a', attrs: { 'data-label': 'Alpha' }, html: '<p id="one">changed</p>' }] }))
     await pg.waitForFunction(() => document.querySelector('iframe.sd-frame')?.contentDocument?.getElementById('one')?.textContent === 'changed', null, { timeout: 5000 })
     await pg.waitForFunction(() => document.querySelector('[data-sd="status"]').innerText === 'Updated', null, { timeout: 3000 })
+  }, 30000)
+
+  it('below 1280 px: the title has 160 px, no arrows in the bar, the second line and 1/3 move to the caption', async () => {
+    const { pg } = await open({}, { width: 1024, height: 768 })
+    expect(await pg.locator('.sd-title').evaluate((el) => el.getBoundingClientRect().width)).toBeGreaterThanOrEqual(160)
+    expect(await pg.locator(q('prev')).isVisible()).toBe(false)
+    expect(await pg.locator(q('next')).isVisible()).toBe(false)
+    expect(await pg.locator('.sd-title span').isVisible()).toBe(false)
+    expect(await pg.getAttribute('.sd-title', 'title')).toBe('a')
+    expect(await text(pg, q('cap-note'))).toBe('a')
+    expect(await text(pg, q('cap-count'))).toBe('1/3')
+    await pg.setViewportSize({ width: 1440, height: 900 })
+    expect(await pg.locator(q('prev')).isVisible()).toBe(true)
+    expect(await pg.locator(q('cap-count')).isVisible()).toBe(false)
+  }, 30000)
+
+  it('pressed options are raised chips, not blue; the disabled main button is grey, not faded', async () => {
+    const { pg, frame } = await open()
+    const look = (sel) => pg.locator(sel).evaluate((el) => { const c = getComputedStyle(el); return [c.backgroundColor, c.color, c.fontWeight] })
+    expect(await look('[data-width="1440"]')).toEqual(['rgb(255, 255, 255)', 'rgb(24, 24, 27)', '600'])
+    expect(await look('[data-zoom="fit"]')).toEqual(['rgb(255, 255, 255)', 'rgb(24, 24, 27)', '600'])
+    expect(await look('[data-theme="light"]')).toEqual(['rgb(255, 255, 255)', 'rgb(24, 24, 27)', '600'])
+    await pg.route('**/__notes', (route) => (route.request().method() === 'POST' ? new Promise(() => {}) : route.continue()))
+    await pg.keyboard.press('p')
+    await frame.locator('#one').click()
+    await pg.fill(q('note-input'), 'x')
+    await pg.press(q('note-input'), 'Enter')
+    const save = '.sd-notebox [type=submit]'
+    await pg.waitForFunction((s) => document.querySelector(s).disabled, save)
+    expect(await pg.locator(save).evaluate((el) => { const c = getComputedStyle(el); return [c.backgroundColor, c.color, c.opacity] })).toEqual(['rgb(228, 228, 231)', 'rgb(99, 99, 107)', '1'])
   }, 30000)
 
   it('Hide list (L) and zoom 100% give the design the room; below 900 px the states are a drop-down in the bar', async () => {

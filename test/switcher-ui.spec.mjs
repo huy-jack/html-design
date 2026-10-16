@@ -90,13 +90,18 @@ async function bootWith(url, fetchImpl, before) {
 }
 
 describe('guided viewer bar', () => {
-  it('names the design theme button and shows which theme the design is in', async () => {
+  it('the design theme is a 2-option group next to the widths: Design: Light | Dark', async () => {
     const w = await boot('http://127.0.0.1:8900/screens/x.html#a@1440')
-    const dark = w.document.querySelector('.sd-bar button:not([data-sd]):not([data-width])')
-    expect(dark.getAttribute('aria-label')).toBe('Design in dark')
-    expect(dark.textContent).toBe('Light')
+    const group = q(w, 'design-theme')
+    expect(group.getAttribute('role')).toBe('group')
+    expect(group.getAttribute('aria-label')).toBe('Design theme')
+    expect(group.textContent).toBe('Design:LightDark')
+    expect(group.previousElementSibling.classList.contains('sd-seg')).toBe(true)
+    const [light, dark] = group.querySelectorAll('button')
+    expect([light.getAttribute('aria-pressed'), dark.getAttribute('aria-pressed')]).toEqual(['true', 'false'])
     dark.click()
-    expect(dark.textContent).toBe('Dark')
+    expect(w.document.querySelector('[data-theme="dark"]').getAttribute('aria-pressed')).toBe('true')
+    expect(w.document.querySelector('.sd-keys').textContent).toContain('design light/dark')
   })
   it('the screen head says the state count in words', async () => {
     const w = await boot('file:///r/design/screens/x.html#a')
@@ -125,11 +130,15 @@ describe('guided viewer bar', () => {
     q(w, 'hide-list').click()
     expect(w.document.querySelector('.sd-app').classList.contains('sd-nolist')).toBe(false)
   })
-  it('a tool theme switch, apart from the design theme, remembered for every plugin page', async () => {
+  it('a tool theme switch in the side panel footer, apart from the design theme, remembered for every plugin page', async () => {
     const w = await boot('http://127.0.0.1:8900/screens/x.html#a@1440')
     const app = w.document.querySelector('.sd-app')
     expect(app.getAttribute('data-ui')).toBeNull()
+    expect(q(w, 'ui-theme').closest('.sd-side')).not.toBeNull()
+    expect(q(w, 'ui-theme').closest('.sd-bar')).toBeNull()
+    expect(q(w, 'ui-theme').textContent).toBe('Tool colors: Light')
     q(w, 'ui-theme').click()
+    expect(q(w, 'ui-theme').textContent).toBe('Tool colors: Dark')
     expect(app.getAttribute('data-ui')).toBe('dark')
     expect(w.localStorage.getItem('hd-ui')).toBe('dark')
     expect(JSON.parse(w.sessionStorage.getItem('sd-view') || '{}').theme ?? 'light').toBe('light')
@@ -176,10 +185,10 @@ describe('links in the viewer', () => {
 describe('viewer settings across a reload', () => {
   it('keeps theme and Pick after the page reloads for a design change', async () => {
     const w = await boot('http://127.0.0.1:8900/screens/x.html#a@1440', undefined, { theme: 'dark', picking: true })
-    const dark = w.document.querySelector('.sd-bar button:not([data-sd]):not([data-width])')
+    const dark = w.document.querySelector('.sd-bar [data-theme="dark"]')
     expect(dark.getAttribute('aria-pressed')).toBe('true')
     expect(q(w, 'pick').getAttribute('aria-pressed')).toBe('true')
-    dark.click()
+    w.document.querySelector('.sd-bar [data-theme="light"]').click()
     q(w, 'pick').click()
     expect(JSON.parse(w.sessionStorage.getItem('sd-view'))).toEqual({ theme: 'light', picking: false })
   })
