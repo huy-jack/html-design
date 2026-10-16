@@ -114,8 +114,8 @@ describe('viewer pages', () => {
   })
   it('Copy window lists screens and the configured widths', async () => {
     const html = copyWindow({ screens: ['fixture'], widths: [1440, 375] })
-    expect(html).toContain('<option value="fixture">')
-    expect(html).toContain('value="__new"')
+    expect(html).toContain('data-value="fixture"')
+    expect(html).toContain('id="screen" class="field" role="combobox"')
     expect(html).toContain('data-width="375"')
     expect(html).toContain('Copy in 5 s')
     const { r, cfg } = project({ widths: [1440, 800] })
@@ -125,7 +125,7 @@ describe('viewer pages', () => {
     expect(res.status).toBe(200)
     const text = await res.text()
     expect(text).toContain('data-width="800"')
-    expect(text).toContain('<option value="x">')
+    expect(text).toContain('data-value="x"')
   })
 })
 
@@ -196,10 +196,10 @@ describe('redesigned viewer pages', () => {
 })
 
 describe('Copy window in a browser', () => {
-  it('Copy window: a hint for open menus, and Copy at 3 widths says it resizes the window', () => {
+  it('Copy window: one line for open menus under Copy state, and Copy at 3 widths says it resizes the window', () => {
     const html = copyWindow({ screens: ['fixture'], widths: [1440, 1024, 375] })
-    expect(html).toContain('To copy an open menu: press Ctrl+Shift+S in the app tab, or click Copy in 5 s and open the menu.')
-    expect(html).toContain('Copy at 3 widths resizes the window, so open menus close.')
+    expect(html).toContain('Menu open in your app? Press Ctrl+Shift+S there, or use Copy in 5 s.')
+    expect(html).toContain('Resizes your app window, so open menus close.')
   })
   it('Copy in 5 s asks Replace? in the Copy tab first, then hands the wait to the server, with no tab', async () => {
     const { r, cfg } = project()
@@ -215,20 +215,19 @@ describe('Copy window in a browser', () => {
       sent.push(route.request().postDataJSON())
       return route.fulfill({ status: 201, contentType: 'application/json', body: '{"saved":"x","images":0,"warnings":[]}' })
     })
-    const dialogs = []
-    pg.on('dialog', (d) => { dialogs.push(d.message()); d.accept() })
     await pg.goto(`${v.url}/__copy`)
     await pg.waitForFunction(() => !document.getElementById('tabPick').hidden)
-    await pg.selectOption('#screen', '__new'); await pg.fill('#newScreen', 'Home Page'); await pg.fill('#name', 'a')
+    await pg.fill('#name', 'a')
     await pg.click('#copyLater')
+    await pg.locator('#ask').waitFor({ state: 'visible' })
+    expect(await pg.locator('#askText').innerText()).toBe('"a" already exists in home-page. Replace it?')
+    await pg.click('#askReplace')
     await pg.waitForFunction(() => /^Saved "a"/.test(document.getElementById('msg').textContent))
-    expect(dialogs).toEqual(['State a already exists. Replace?'])
-    expect(sent).toEqual([{ screen: 'Home Page', state: 'a', label: 'a', delay: 5, replace: true }])
+    expect(sent).toEqual([{ screen: 'home-page', state: 'a', label: 'a', delay: 5, replace: true }])
     await pg.fill('#name', 'b')
     await pg.click('#copyLater')
     await pg.waitForFunction(() => /^Saved "b"/.test(document.getElementById('msg').textContent))
-    expect(dialogs).toHaveLength(1)
-    expect(sent[1]).toEqual({ screen: 'Home Page', state: 'b', label: 'b', delay: 5 })
+    expect(sent[1]).toEqual({ screen: 'home-page', state: 'b', label: 'b', delay: 5 })
   }, 30000)
   it('Copy at 3 widths: Replace? first, each resize brings the app tab to the front, the result shows in the app tab', async () => {
     const { r, cfg } = project()
@@ -249,15 +248,14 @@ describe('Copy window in a browser', () => {
         return route.fulfill({ status: p === '__copy' ? 201 : 200, contentType: 'application/json', body: '{"saved":"x","images":0,"warnings":[]}' })
       })
     }
-    const dialogs = []
-    pg.on('dialog', (d) => { dialogs.push(d.message()); d.accept() })
     await pg.goto(`${v.url}/__copy`)
     await pg.waitForFunction(() => !document.getElementById('tabPick').hidden)
     await pg.selectOption('#tabPick', { index: 1 })
-    await pg.selectOption('#screen', '__new'); await pg.fill('#newScreen', 'Home Page'); await pg.fill('#name', 'a')
+    await pg.fill('#name', 'a')
     await pg.click('#copy3')
+    await pg.locator('#ask').waitFor({ state: 'visible' })
+    await pg.click('#askReplace')
     await pg.waitForFunction(() => /^Saved "a" at/.test(document.getElementById('msg').textContent) && !document.getElementById('copy3').disabled)
-    expect(dialogs).toEqual(['State a already exists. Replace?'])
     const tabId = sent.find((x) => x.p === '__resize').tab
     expect(tabId).toMatch(/^t-\d+$/)
     expect(sent.map((x) => x.p + (x.width ?? ''))).toEqual(['__resize1440', '__copy', '__resize1024', '__copy', '__resize375', '__copy', '__resize1440', '__toast'])
@@ -344,6 +342,9 @@ describe('POST guards and copy', () => {
     expect((await post(v.port, '/__preset', { screen: 'home', state: 'menu', label: 'Menu' })).status).toBe(200)
     expect(got).toEqual({ screen: 'home', state: 'menu', label: 'Menu' })
     expect((await post(v.port, '/__preset', { screen: '', state: 'a' })).status).toBe(400)
+    // The Copy tab cleared its name: the chord has nothing to save until a new name is typed.
+    expect((await post(v.port, '/__preset', { clear: true })).status).toBe(200)
+    expect(got).toBeNull()
   })
   it('POST /__resize sets the app width to a configured width', async () => {
     const { r, cfg } = project()

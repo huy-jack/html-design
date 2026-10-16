@@ -166,16 +166,70 @@ describe('Copy tab in a browser', () => {
     return { pg, sent, v }
   }
 
-  it('one field names the view: the id is made from it and sent with the name as label; success offers Open in viewer', async () => {
-    const { pg, sent } = await copyTab([tab('app')], { __copy: [201, { saved: 'x', images: 0, warnings: [] }] })
-    await pg.selectOption('#screen', 'home-page')
+  it('the key line under Copy state names the shortcut (Control on macOS); tips sit where they apply', async () => {
+    const { pg } = await copyTab([tab('app')])
+    await pg.waitForFunction(() => !document.getElementById('copy').disabled)
+    const mac = /Mac/.test(await pg.evaluate(() => navigator.platform))
+    expect(await text(pg, '#keyhint')).toBe(mac ? 'Menu open in your app? Press Control+Shift+S (not Cmd) there, or use Copy in 5 s.' : 'Menu open in your app? Press Ctrl+Shift+S there, or use Copy in 5 s.')
+    expect(await pg.locator('#copy').evaluate((b) => b.nextElementSibling.id)).toBe('why')
+    expect(await text(pg, '#widthHint')).toBe('Resizes your app window.')
+    expect(await text(pg, '#copy3Hint')).toBe('Resizes your app window, so open menus close.')
+    expect(await pg.locator('.tips').count()).toBe(0)
+    const other = await newPage()
+    await other.addInitScript((m) => Object.defineProperty(navigator, 'platform', { get: () => m }), mac ? 'Linux x86_64' : 'MacIntel')
+    await other.goto(pg.url())
+    expect(await text(other, '#keyhint')).toBe(mac ? 'Menu open in your app? Press Ctrl+Shift+S there, or use Copy in 5 s.' : 'Menu open in your app? Press Control+Shift+S (not Cmd) there, or use Copy in 5 s.')
+  }, 30000)
+
+  it('an existing name asks in the page: Replace, Save as "<name> 2", or Cancel', async () => {
+    let n = 0
+    const { pg, sent } = await copyTab([tab('app')], { __copy: (body) => (body.replace || body.state !== 'a' ? [201, { saved: 'x', images: 0, warnings: [] }] : (n++, [409, { exists: true, error: 'State a already exists at this width.' }])) })
+    pg.on('dialog', (d) => { throw new Error('no browser dialog: ' + d.message()) })
+    await pg.fill('#name', 'A')
+    await pg.click('#copy')
+    await pg.locator('#ask').waitFor({ state: 'visible' })
+    expect(await text(pg, '#askText')).toBe('"A" already exists in home-page. Replace it?')
+    expect(await text(pg, '#askNumber')).toBe('Save as "A 2"')
+    await pg.click('#askNumber')
+    await pg.waitForFunction(() => /^Saved "A 2"/.test(document.getElementById('msg').innerText))
+    expect(sent.filter((x) => x.p === '__copy').at(-1)).toMatchObject({ screen: 'home-page', state: 'a-2', label: 'A 2' })
+    await pg.fill('#name', 'A')
+    await pg.click('#copy')
+    await pg.locator('#ask').waitFor({ state: 'visible' })
+    await pg.click('#askReplace')
+    await pg.waitForFunction(() => /^Saved "A"/.test(document.getElementById('msg').innerText))
+    expect(sent.filter((x) => x.p === '__copy').at(-1)).toMatchObject({ state: 'a', replace: true })
+    await pg.fill('#name', 'A')
+    await pg.click('#copy')
+    await pg.locator('#ask').waitFor({ state: 'visible' })
+    await pg.click('#askCancel')
+    expect(await text(pg, '#msg')).toBe('Not copied.')
+    expect(await pg.locator('#ask').isHidden()).toBe(true)
+  }, 30000)
+
+  it('pressed options are raised chips; the disabled main button is grey, not faded', async () => {
+    const { pg } = await copyTab([])
+    await pg.waitForFunction(() => /No app tab/.test(document.getElementById('live').innerText))
+    expect(await pg.locator('#copy').evaluate((el) => { const c = getComputedStyle(el); return [c.backgroundColor, c.color, c.opacity] })).toEqual(['rgb(228, 228, 231)', 'rgb(99, 99, 107)', '1'])
+    expect(await pg.locator('#keyhint').isHidden()).toBe(true)
+    expect(await pg.locator('[data-width="1440"]').evaluate((el) => { const c = getComputedStyle(el); return [c.backgroundColor, c.color, c.fontWeight] })).toEqual(['rgb(255, 255, 255)', 'rgb(24, 24, 27)', '600'])
+  }, 30000)
+
+  it('one field names the view: the id is made from it and sent with the name as label; success offers Open in viewer, then the name is cleared for the next copy', async () => {
+    const { pg, sent: all } = await copyTab([tab('app')], { __copy: [201, { saved: 'x', images: 0, warnings: [] }], __preset: [200, { ok: true }] })
+    const sent = { filter: (f) => all.filter(f), get copies() { return all.filter((x) => x.p === '__copy') } }
+    expect(await pg.inputValue('#screen')).toBe('home-page')
     await pg.fill('#name', 'Menu open')
     expect(await text(pg, '#idLine')).toContain('Saved as menu-open')
     await pg.click('#copy')
     await pg.waitForFunction(() => /^Saved/.test(document.getElementById('msg').innerText))
-    expect(sent).toEqual([{ p: '__copy', screen: 'home-page', state: 'menu-open', label: 'Menu open' }])
+    expect(sent.copies).toEqual([{ p: '__copy', screen: 'home-page', state: 'menu-open', label: 'Menu open' }])
     expect(await text(pg, '#msg')).toBe('Saved "Menu open" in home-page. Open in viewer')
     expect(await pg.getAttribute('#openViewer', 'href')).toBe('/screens/home-page.html#menu-open')
+    expect(await pg.inputValue('#name')).toBe('')
+    expect(await pg.evaluate(() => document.activeElement.id)).toBe('name')
+    // The chord follows the Copy tab: an empty name clears what Ctrl+Shift+S would save.
+    await expect.poll(() => sent.filter((x) => x.p === '__preset').at(-1)).toEqual({ p: '__preset', clear: true })
   }, 30000)
 
   it('Change id shows the id field; a typed id stays when the name changes', async () => {
@@ -234,21 +288,32 @@ describe('Copy tab in a browser', () => {
     expect(await pg.locator('#later').isHidden()).toBe(true)
   }, 30000)
 
-  it('with many screens, Find a screen narrows the list and picks the first match; no match starts a new screen with that name', async () => {
+  it('Screen is one searchable field: matches list under it; a new screen is made only from the Create new screen row', async () => {
     const { r, cfg } = project()
-    for (const n of ['alpha', 'beta', 'cart', 'checkout', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'payment']) writeFileSync(join(r, `design/screens/${n}.html`), screen(n, [['a', 'A']]))
+    for (const n of ['alpha', 'cart', 'checkout', 'payment']) writeFileSync(join(r, `design/screens/${n}.html`), screen(n, [['a', 'A']]))
     const v = await viewer({ root: r, cfg, browser: stubBrowser([tab('app')]) })
     const pg = await newPage()
+    const sent = []
+    await pg.route('**/__copy', (route) => { if (route.request().method() !== 'POST') return route.continue(); sent.push(route.request().postDataJSON()); route.fulfill({ status: 201, contentType: 'application/json', body: '{"saved":"x","images":0,"warnings":[]}' }) })
     await pg.goto(v.url + '/__copy')
-    await pg.fill('#screenFind', 'pay')
-    expect(await pg.inputValue('#screen')).toBe('payment')
-    expect(await pg.locator('#screen option:not([hidden])').count()).toBe(2)
-    await pg.fill('#screenFind', 'Order history')
-    expect(await pg.inputValue('#screen')).toBe('__new')
-    expect(await pg.inputValue('#newScreen')).toBe('Order history')
-    const few = await viewer({ root: project().r, cfg, browser: stubBrowser([tab('app')]) })
-    await pg.goto(few.url + '/__copy')
-    expect(await pg.locator('#screenFind').isHidden()).toBe(true)
+    expect(await text(pg, '#screenHint')).toBe('Pick one, or type a new name')
+    await pg.fill('#screen', 'c')
+    expect(await pg.locator('#screenList [role=option]').allInnerTexts()).toEqual(['cart', 'checkout', 'Create new screen "c"'])
+    await pg.click('#screenList [data-value="checkout"]')
+    expect(await pg.inputValue('#screen')).toBe('checkout')
+    expect(await pg.locator('#screenList').isHidden()).toBe(true)
+    await pg.fill('#screen', 'Order history')
+    expect(await pg.locator('#screenList [role=option]').allInnerTexts()).toEqual(['Create new screen "Order history"'])
+    await pg.fill('#name', 'Empty')
+    await pg.click('#copy')
+    expect(await text(pg, '#screenErr')).toBe('Pick a screen from the list, or Create new screen "Order history"')
+    expect(sent).toEqual([])
+    await pg.focus('#screen')
+    await pg.keyboard.press('ArrowDown')
+    await pg.keyboard.press('Enter')
+    await pg.click('#copy')
+    await expect.poll(() => sent.length).toBe(1)
+    expect(sent[0]).toMatchObject({ screen: 'Order history', state: 'empty' })
   }, 30000)
 
   it('Copy at 3 widths shows the width it is on in its button', async () => {

@@ -73,8 +73,8 @@ function readBody(req, limit) {
 // Light by default, dark when the computer asks for it; data-ui on <html> is the user's own choice (key hd-ui).
 // Accent only for the main action, the selected item, links and focus; never inside the design.
 const FONT_LINK = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">'
-const LIGHT = '--bg:#ffffff;--chrome:#f6f7f9;--raise:#ffffff;--hover:#eceef2;--line:#e4e4e7;--edge:#8e8e98;--ink:#18181b;--dim:#52525b;--mute:#63636b;--accent:#2563eb;--accent-h:#1d4ed8;--accent-p:#1e40af;--link:#2563eb;--sel:#eff4ff;--sel-ink:#1e40af;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--ok-bg:#f0fdf4;--warn-bg:#fffbeb;--warn-edge:#d97706;--bad-bg:#fef2f2;color-scheme:light'
-const DARK = '--bg:#111113;--chrome:#18181b;--raise:#1f1f23;--hover:#2a2a2e;--line:#2a2a2e;--edge:#71717a;--ink:#f4f4f5;--dim:#a1a1aa;--mute:#8b8b94;--link:#7aa7ff;--sel:#1c2a4a;--sel-ink:#f4f4f5;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--ok-bg:#12261a;--warn-bg:#2b2210;--warn-edge:#a16207;--bad-bg:#2c1515;color-scheme:dark'
+const LIGHT = '--bg:#ffffff;--chrome:#f6f7f9;--raise:#ffffff;--hover:#eceef2;--line:#e4e4e7;--edge:#8e8e98;--ink:#18181b;--dim:#52525b;--mute:#63636b;--accent:#2563eb;--accent-h:#1d4ed8;--accent-p:#1e40af;--link:#2563eb;--sel:#eff4ff;--sel-ink:#1e40af;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--ok-bg:#f0fdf4;--warn-bg:#fffbeb;--warn-edge:#d97706;--bad-bg:#fef2f2;--chip:#ffffff;--chip-edge:#8e8e98;--off:#e4e4e7;--off-ink:#63636b;color-scheme:light'
+const DARK = '--bg:#111113;--chrome:#18181b;--raise:#1f1f23;--hover:#2a2a2e;--line:#2a2a2e;--edge:#71717a;--ink:#f4f4f5;--dim:#a1a1aa;--mute:#8b8b94;--link:#7aa7ff;--sel:#1c2a4a;--sel-ink:#f4f4f5;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--ok-bg:#12261a;--warn-bg:#2b2210;--warn-edge:#a16207;--bad-bg:#2c1515;--chip:#2a2a2e;--chip-edge:#71717a;--off:#2a2a2e;--off-ink:#a1a1aa;color-scheme:dark'
 const CHROME_CSS = `:root{${LIGHT}}@media (prefers-color-scheme:dark){:root:not([data-ui=light]){${DARK}}}:root[data-ui=dark]{${DARK}}
 *{box-sizing:border-box;margin:0}body{font:14px/1.5 Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
 a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}:focus-visible{outline:2px solid var(--accent);outline-offset:2px}[hidden]{display:none !important}
@@ -84,9 +84,10 @@ svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke
 .btn{height:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;border-radius:8px;color:var(--ink);border:1px solid var(--edge);background:var(--raise);font:inherit;font-weight:500;cursor:pointer;white-space:nowrap}
 .btn:hover{background:var(--hover);text-decoration:none}.btn:disabled{opacity:.5;cursor:not-allowed}.btn[aria-busy=true]:disabled{opacity:1;cursor:progress}.btn.icon{width:36px;padding:0}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.primary:hover{background:var(--accent-h);border-color:var(--accent-h)}.btn.primary:active{background:var(--accent-p)}
+.btn.primary:disabled{background:var(--off);border-color:var(--off);color:var(--off-ink);opacity:1}.btn.primary[aria-busy=true]:disabled{background:var(--accent);border-color:var(--accent);color:#fff}
 .seg{display:inline-flex;padding:3px;background:var(--chrome);border:1px solid var(--edge);border-radius:8px;gap:2px}
 .seg>button{height:28px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-radius:6px;color:var(--dim);font:inherit;font-size:13px;font-weight:500;background:none;border:0;cursor:pointer}
-.seg>button:hover{color:var(--ink);background:var(--hover)}.seg>button[aria-pressed=true]{background:var(--accent);color:#fff}
+.seg>button:hover{color:var(--ink);background:var(--hover)}.seg>button[aria-pressed=true]{background:var(--chip);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--chip-edge)}
 .pill{display:inline-flex;align-items:center;gap:8px;min-width:0;color:var(--dim);font-size:13px;padding:0 12px;height:32px;border:1px solid var(--line);border-radius:999px;background:var(--raise);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}.dot.off{background:var(--mute)}
 .field{height:38px;width:100%;padding:0 12px;border:1px solid var(--edge);border-radius:8px;background:var(--raise);color:var(--ink);font:inherit;outline:none}
@@ -113,7 +114,7 @@ const UI_HEAD_JS = `<script>try{var t=localStorage.getItem('hd-ui');if(t)documen
 // The tool theme button (#uiTheme), and links between the plugin's tabs. In the session browser (it has the
 // chord binding) a data-focus link switches to the open tab through the server; else it is a plain link.
 const PAGE_JS = `function uiDark(){var t=document.documentElement.getAttribute('data-ui');return t?t==='dark':!!(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)}
-function uiShow(){var b=document.getElementById('uiTheme');if(!b)return;var d=uiDark();b.innerHTML=d?${JSON.stringify(ICONS.sun)}:${JSON.stringify(ICONS.moon)};b.title=d?'Use the light theme for this tool':'Use the dark theme for this tool';b.setAttribute('aria-label',b.title)}
+function uiShow(){var b=document.getElementById('uiTheme');if(!b)return;var d=uiDark();b.innerHTML=d?${JSON.stringify(ICONS.sun)}:${JSON.stringify(ICONS.moon)};b.title='Tool colors (not your design)';b.setAttribute('aria-label',b.title)}
 uiShow()
 document.addEventListener('click',function(e){
   var b=e.target.closest&&e.target.closest('#uiTheme')
@@ -320,9 +321,10 @@ try {
 }
 
 // The Copy tab: not part of the app and not a design, so its script is inline. A guided form: a card says
-// whether an app tab is open (and switches the copy buttons), one field names the view, errors sit under fields.
+// whether an app tab is open (and switches the copy buttons), one searchable field picks the screen, one field
+// names the view, errors and questions sit under the fields and the main button.
 export function copyWindow({ screens, widths }) {
-  const options = screens.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('') + '<option value="__new">New screen</option>'
+  const rows = screens.map((s, i) => `<li role="option" id="opt-${i}" data-value="${esc(s)}">${esc(s)}</li>`).join('')
   const widthBtns = widths.map((w, i) => `<button type="button" data-width="${w}" aria-pressed="${i === 0}">${w}</button>`).join('')
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Copy tab</title>${UI_HEAD_JS}${FONT_LINK}<style>${CHROME_CSS}
 .top b{font-weight:600}.col{max-width:560px;margin:0 auto;padding:24px 24px 48px}
@@ -331,15 +333,18 @@ h1{font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}.lead{c
 .notice{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--warn-edge);background:var(--warn-bg);border-radius:12px;padding:16px;line-height:1.5}.notice svg{color:var(--warn);width:20px;height:20px;margin-top:1px}
 .tabrow{display:flex;align-items:center;gap:12px}.fav{width:32px;height:32px;border-radius:8px;border:1px solid var(--edge);display:grid;place-items:center;color:var(--dim);flex:none}
 .tt{flex:1;min-width:0;line-height:1.35}.tt b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tt span{display:block;color:var(--dim);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#tabPick{margin-top:12px}.find{margin-bottom:8px}.wrow{margin-top:12px}.wrow .lab{display:block;font-size:13px;font-weight:500;margin-bottom:8px}
+#tabPick{margin-top:12px}.wrow{margin-top:12px}.wrow .lab{display:block;font-size:13px;font-weight:500;margin-bottom:8px}
 label{display:block;font-size:13px;font-weight:500;margin:20px 0 8px}
 .hint{color:var(--dim);font-size:13px;margin-top:8px}.err{display:flex;gap:8px;align-items:center;color:var(--bad);font-size:13px;font-weight:500;margin-top:8px}
+.combo{position:relative}#screenList{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:5;list-style:none;margin:0;padding:4px;max-height:240px;overflow:auto;background:var(--raise);border:1px solid var(--edge);border-radius:8px;box-shadow:0 12px 32px -12px rgba(0,0,0,.3)}
+#screenList li{padding:8px 12px;border-radius:8px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#screenList li:hover,#screenList li[aria-selected=true]{background:var(--hover)}
+#screenList li[data-create]{color:var(--link);font-weight:500;border-top:1px solid var(--line);border-radius:0 0 8px 8px}#screenList li[data-create]:first-child{border-top:0;border-radius:8px}
 .idline{font-size:13px;color:var(--dim);margin-top:4px}.idline code{font:500 13px "Geist Mono",ui-monospace,monospace;color:var(--ink)}
 .linkbtn{background:none;border:0;padding:0;color:var(--link);font:inherit;cursor:pointer;text-decoration:underline}
 .go{width:100%;height:44px;margin-top:24px;font-size:16px;font-weight:600}.keyhint{text-align:center;color:var(--dim);font-size:13px;margin-top:8px}
-.alt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.ask{margin-top:12px;padding:16px;border:1px solid var(--edge);border-radius:12px;background:var(--chrome)}.ask p{font-weight:600;margin-bottom:12px}.askrow{display:flex;flex-wrap:wrap;gap:8px}
+.alt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.alt .btn{width:100%}.alt .hint{text-align:center}
 .why{display:flex;gap:8px;align-items:center;justify-content:center;color:var(--warn);font-size:13px;font-weight:500;margin-top:8px}
-.tips{margin-top:16px;padding-left:16px;color:var(--dim);font-size:13px;display:grid;gap:4px}
 .later{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:8px 12px 8px 16px;border-radius:12px;background:var(--sel);color:var(--sel-ink);font-weight:500}
 #msg{margin-top:12px}#msg:empty,#tabs:empty{display:none}#msg.err{color:var(--bad)}#msg.ok{color:var(--ok)}#msg a{font-weight:600;color:var(--link)}
 #tabs{margin-top:8px;display:grid;gap:8px}#tabs button{justify-content:flex-start}
@@ -355,27 +360,27 @@ label{display:block;font-size:13px;font-weight:500;margin:20px 0 8px}
 <section id="ready" class="notice" hidden>${ICONS.alert}<div id="readyText"></div></section>
 <section id="tab" class="box"><div class="tabrow"><span class="fav">${ICONS.globe}</span><div class="tt"><b id="tabTitle">Looking for your app tab…</b><span id="tabUrl" class="mono"></span></div></div>
 <select id="tabPick" class="field" aria-label="App tab" hidden></select>
-<div class="wrow"><span class="lab">App width</span><div class="seg" id="widths" role="group" aria-label="App width">${widthBtns}</div></div></section>
-<label for="screen">Screen</label><input id="screenFind" class="field find" placeholder="Find a screen" aria-label="Find a screen" autocomplete="off"${screens.length > 8 ? '' : ' hidden'}><select id="screen" class="field">${options}</select>
-<div id="newWrap" hidden><label for="newScreen">Screen name</label><input id="newScreen" class="field" autocomplete="off"><p class="hint">For example: Checkout</p></div>
-<p class="err" id="screenErr" role="alert" hidden></p>
+<div class="wrow"><span class="lab">App width</span><div class="seg" id="widths" role="group" aria-label="App width">${widthBtns}</div><p class="hint" id="widthHint">Resizes your app window.</p></div></section>
+<label for="screen">Screen</label><div class="combo"><input id="screen" class="field" role="combobox" aria-expanded="false" aria-controls="screenList" aria-autocomplete="list" aria-describedby="screenHint" autocomplete="off" value="${esc(screens[0] ?? '')}"><ul id="screenList" role="listbox" aria-label="Screens" hidden>${rows}</ul></div>
+<p class="hint" id="screenHint">Pick one, or type a new name</p><p class="err" id="screenErr" role="alert" hidden></p>
 <label for="name">Name this view</label><input id="name" class="field" autocomplete="off" aria-describedby="nameHint">
 <p class="hint" id="nameHint">What is on screen, for example: Menu open</p><p class="err" id="nameErr" role="alert" hidden></p>
 <p class="idline" id="idLine" hidden>Saved as <code id="idShow"></code> · <button type="button" class="linkbtn" id="changeId">Change id</button></p>
 <div id="idWrap" hidden><label for="state">State id</label><input id="state" class="field mono" autocomplete="off"><p class="hint">Letters, digits, - _ . Links between states use it.</p></div>
 <button type="button" id="copy" class="btn primary go" disabled>${ICONS.copy}Copy state</button>
-<p class="keyhint">Or press <span class="kbd">Ctrl</span> <span class="kbd">Shift</span> <span class="kbd">S</span> in your app tab</p>
-<div class="alt"><button type="button" id="copyLater" class="btn" disabled>Copy in 5 s</button><button type="button" id="copy3" class="btn" disabled>Copy at ${widths.length} widths</button></div>
 <p class="why" id="why" hidden></p>
+<p class="keyhint" id="keyhint" hidden>Menu open in your app? Press Ctrl+Shift+S there, or use Copy in 5 s.</p>
+<div id="ask" class="ask" role="alertdialog" aria-labelledby="askText" hidden><p id="askText"></p><div class="askrow"><button type="button" id="askReplace" class="btn primary">Replace</button><button type="button" id="askNumber" class="btn"></button><button type="button" id="askCancel" class="btn">Cancel</button></div></div>
+<div class="alt"><div><button type="button" id="copyLater" class="btn" disabled>Copy in 5 s</button></div><div><button type="button" id="copy3" class="btn" disabled>Copy at ${widths.length} widths</button><p class="hint" id="copy3Hint">Resizes your app window, so open menus close.</p></div></div>
 <div id="later" class="later" hidden><span id="laterText"></span><button type="button" id="cancel" class="btn">Cancel</button></div>
 <div id="tabs"></div><div id="msg" role="status"></div>
-<ul class="tips"><li class="hint">To copy an open menu: press Ctrl+Shift+S in the app tab, or click Copy in 5 s and open the menu.</li><li class="hint">Copy at ${widths.length} widths resizes the window, so open menus close.</li></ul>
 <section class="rec"><h2>Recent</h2><div id="recent"><div class="empty">Copies you make show up here.</div></div></section>
 </main>
 <script>
 ${AGO_JS}
 ${PAGE_JS}
 var WIDTHS = ${JSON.stringify(widths)}
+var SCREENS = ${JSON.stringify(screens)}
 var slug = ${slugScreen.toString()}
 var slugState = ${slugState.toString()}
 var $ = function (id) { return document.getElementById(id) }
@@ -384,6 +389,8 @@ var ALERT = ${JSON.stringify(ICONS.alert)}
 var BUTTONS = ['copy', 'copyLater', 'copy3']
 var LABELS = {}
 BUTTONS.forEach(function (id) { LABELS[id] = $(id).innerHTML })
+// The chord is Control on a Mac too, not Cmd.
+if (/Mac|iPhone|iPad/.test(navigator.platform || '')) $('keyhint').textContent = 'Menu open in your app? Press Control+Shift+S (not Cmd) there, or use Copy in 5 s.'
 // text: progress in the button with a spinner; null puts the label back.
 function label(id, text) {
   $(id).innerHTML = text == null ? LABELS[id] : '<span class="spin" aria-hidden="true"></span><span>' + esc(text) + '</span>'
@@ -392,36 +399,76 @@ function label(id, text) {
 function msg(html, kind) { $('msg').innerHTML = html; $('msg').className = kind || '' }
 function say(text, kind) { msg(esc(text), kind) }
 function fieldError(which, text) {
-  var f = which === 'screen' ? ($('screen').value === '__new' ? $('newScreen') : $('screen')) : $('name')
+  var f = $(which === 'screen' ? 'screen' : 'name')
   $(which + 'Err').hidden = !text
   $(which + 'Err').innerHTML = text ? ALERT + '<span>' + esc(text) + '</span>' : ''
-  if (text) return f.setAttribute('aria-invalid', 'true')
-  if (which === 'screen') { $('screen').removeAttribute('aria-invalid'); $('newScreen').removeAttribute('aria-invalid') } else f.removeAttribute('aria-invalid')
+  if (text) f.setAttribute('aria-invalid', 'true'); else f.removeAttribute('aria-invalid')
 }
-function showNew() { $('newWrap').hidden = $('screen').value !== '__new' }
-$('screen').onchange = function () { showNew(); fieldError('screen', '') }
-$('newScreen').addEventListener('input', function () { fieldError('screen', '') })
-showNew()
-// Many screens: the typed text narrows the list and picks the first match; no match means a new screen.
-$('screenFind').addEventListener('input', function () {
-  var v = $('screenFind').value.trim().toLowerCase(), first = null
-  Array.prototype.forEach.call($('screen').options, function (o) {
-    if (o.value === '__new') return
-    o.hidden = !!v && o.value.indexOf(v) === -1 && o.value.indexOf(slug(v)) === -1
-    if (!o.hidden && !first) first = o.value
-  })
-  $('screen').value = first && v ? first : v ? '__new' : $('screen').value
-  if (!first && v) $('newScreen').value = $('screenFind').value.trim()
-  showNew()
-  fieldError('screen', '')
-})
 function postJson(path, body) {
   return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function (r) { return r.json().catch(function () { return {} }).then(function (j) { return { status: r.status, body: j } }) })
 }
-// Ready: an app tab is open. Working: a copy runs. The copy buttons need ready and not working.
+// Screen: one field. Typing lists the matching screens; a name that is no screen yet adds the row
+// Create new screen "<text>", and only that row makes a new one. choice: { value, isNew } or null.
+var choice = SCREENS.length ? { value: SCREENS[0] } : null
+var active = -1
+function options() { return Array.prototype.slice.call($('screenList').querySelectorAll('[role=option]')) }
+function openList() {
+  var v = $('screen').value.trim(), low = v.toLowerCase(), key = slug(v)
+  var all = !v || (choice && !choice.isNew && v === choice.value)
+  var hits = SCREENS.filter(function (s) { return all || s.indexOf(low) !== -1 || (key && s.indexOf(key) !== -1) })
+  var html = hits.map(function (s, i) { return '<li role="option" id="opt-' + i + '" data-value="' + esc(s) + '">' + esc(s) + '</li>' }).join('')
+  if (v && SCREENS.indexOf(key) === -1) html += '<li role="option" id="opt-new" data-create="1" data-value="' + esc(v) + '">Create new screen "' + esc(v) + '"</li>'
+  $('screenList').innerHTML = html
+  $('screenList').hidden = !html
+  $('screen').setAttribute('aria-expanded', String(!!html))
+  active = -1
+  $('screen').removeAttribute('aria-activedescendant')
+}
+function closeList() { $('screenList').hidden = true; $('screen').setAttribute('aria-expanded', 'false'); active = -1 }
+function pick(li) {
+  var v = li.getAttribute('data-value')
+  choice = li.hasAttribute('data-create') ? { value: v, isNew: true } : { value: v }
+  $('screen').value = v
+  closeList()
+  fieldError('screen', '')
+  presetSoon()
+}
+function move(by) {
+  var list = options()
+  if (!list.length) return
+  active = (active + by + list.length) % list.length
+  list.forEach(function (li, i) { li.setAttribute('aria-selected', String(i === active)) })
+  $('screen').setAttribute('aria-activedescendant', list[active].id)
+  list[active].scrollIntoView({ block: 'nearest' })
+}
+$('screen').addEventListener('input', function () {
+  var key = slug($('screen').value)
+  choice = key && SCREENS.indexOf(key) !== -1 ? { value: key } : null
+  fieldError('screen', '')
+  openList()
+})
+$('screen').addEventListener('focus', openList)
+$('screen').addEventListener('blur', function () { setTimeout(closeList, 150) })
+$('screen').addEventListener('keydown', function (e) {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if ($('screenList').hidden) openList(); move(e.key === 'ArrowDown' ? 1 : -1) }
+  else if (e.key === 'Enter' && !$('screenList').hidden && active >= 0) { e.preventDefault(); pick(options()[active]) }
+  else if (e.key === 'Escape') closeList()
+})
+// mousedown, not click: the field keeps the focus, so the list is still there when the click lands.
+$('screenList').addEventListener('mousedown', function (e) {
+  var li = e.target.closest && e.target.closest('[role=option]')
+  if (!li) return
+  e.preventDefault()
+  pick(li)
+})
+// Ready: an app tab is open. Working: a copy runs. The copy buttons need ready and not working; the key line hides with them.
 var tabs = [], ready = false, working = false
-function sync() { BUTTONS.forEach(function (id) { $(id).disabled = working || !ready }) }
+function sync() {
+  var off = working || !ready
+  BUTTONS.forEach(function (id) { $(id).disabled = off })
+  $('keyhint').hidden = off
+}
 function notReady(html, why) {
   ready = false
   $('ready').hidden = false
@@ -496,42 +543,83 @@ $('name').addEventListener('input', function () { if (!customId) $('state').valu
 $('state').addEventListener('input', function () { customId = !!$('state').value.trim(); showId(); fieldError('name', '') })
 $('changeId').onclick = function () { $('idWrap').hidden = false; $('state').value = stateId(); $('state').focus() }
 function names() {
-  var screen = $('screen').value === '__new' ? $('newScreen').value.trim() : $('screen').value
-  return { screen: screen, state: stateId(), label: $('name').value.trim() || undefined }
+  return { screen: choice ? choice.value : '', state: stateId(), label: $('name').value.trim() || undefined }
+}
+// After a saved copy the name is cleared for the next one, and the chord forgets it too.
+function clearName() {
+  $('name').value = ''
+  $('state').value = ''
+  customId = false
+  $('idWrap').hidden = true
+  showId()
+  sendPreset()
+  $('name').focus()
 }
 // Checked when Copy is pressed, never while typing. The first bad field gets the focus.
 function check(n) {
   say('')
   fieldError('screen', '')
   fieldError('name', '')
-  if (!n.screen || !slug(n.screen)) fieldError('screen', 'Give the screen a name')
+  var typed = $('screen').value.trim()
+  if (!choice) fieldError('screen', typed ? 'Pick a screen from the list, or Create new screen "' + typed + '"' : 'Pick a screen, or type a new name')
+  else if (!slug(choice.value)) fieldError('screen', 'Use a letter or a digit in the screen name')
   if (!$('name').value.trim() && !customId) fieldError('name', 'Give this view a name')
   else if (!n.state) fieldError('name', 'Use a letter or a digit in the name, or set the id with Change id')
   var bad = document.querySelector('[aria-invalid=true]')
   if (bad) bad.focus()
   return !bad
 }
-function sendPreset() { postJson('/__preset', names()).catch(function () {}) }
+// The chord (Ctrl+Shift+S in the app tab) copies under the names here; an empty name clears them.
+function sendPreset() { var n = names(); postJson('/__preset', n.screen && n.state ? n : { clear: true }).catch(function () {}) }
 var presetTimer = null
-;['screen', 'newScreen', 'name', 'state'].forEach(function (id) {
-  $(id).addEventListener('input', function () { clearTimeout(presetTimer); presetTimer = setTimeout(sendPreset, 300) })
-  $(id).addEventListener('change', function () { clearTimeout(presetTimer); presetTimer = setTimeout(sendPreset, 300) })
-})
-// One copy. Resolves to true when saved; asks about an existing state and about which tab.
-function send(extra) {
-  var body = names()
+function presetSoon() { clearTimeout(presetTimer); presetTimer = setTimeout(sendPreset, 300) }
+;['screen', 'name', 'state'].forEach(function (id) { $(id).addEventListener('input', presetSoon) })
+// The free numbered name: "Menu open 2" (menu-open-2), then 3, and so on.
+function nextFree(n) {
+  var base = n.label || n.state
+  var tryK = function (k) {
+    var next = { screen: n.screen, state: (n.state + '-' + k).slice(0, 120), label: base + ' ' + k }
+    return fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(next.state)).then(function (r) { return r.status === 200 && k < 99 ? tryK(k + 1) : next }, function () { return next })
+  }
+  return tryK(2)
+}
+// The name is taken: ask here, under the main button. Resolves { kind: 'replace' | 'number' | 'cancel', n }.
+function askExisting(n) {
+  return nextFree(n).then(function (n2) {
+    return new Promise(function (done) {
+      $('askText').textContent = '"' + (n.label || n.state) + '" already exists in ' + slug(n.screen) + '. Replace it?'
+      $('askNumber').textContent = 'Save as "' + n2.label + '"'
+      $('ask').hidden = false
+      $('askReplace').focus()
+      var end = function (kind) {
+        $('ask').hidden = true
+        $('askReplace').onclick = $('askNumber').onclick = $('askCancel').onclick = null
+        if (kind === 'cancel') say('Not copied.')
+        done({ kind: kind, n: kind === 'number' ? n2 : n })
+      }
+      $('askReplace').onclick = function () { end('replace') }
+      $('askNumber').onclick = function () { end('number') }
+      $('askCancel').onclick = function () { end('cancel') }
+    })
+  })
+}
+// One copy of n. Resolves to the names saved, or null; asks about an existing state and about which tab.
+function send(n, extra) {
+  var body = { screen: n.screen, state: n.state, label: n.label }
   if (chosenTab() && !('tab' in extra)) body.tab = chosenTab()
   for (var k in extra) body[k] = extra[k]
   $('tabs').textContent = ''
-  sendPreset()
   return postJson('/__copy', body).then(function (r) {
     if (r.status === 201) {
       var warn = r.body.warnings && r.body.warnings.length ? '<br><span class="hint">' + esc(r.body.warnings.join('; ')) + '</span>' : ''
       msg('Saved "' + esc(body.label || body.state) + '" in ' + esc(slug(body.screen)) + (r.body.images ? ' · ' + r.body.images + ' images' : '') + '. ' + openLink(viewerHref(body.screen, body.state)) + warn, 'ok')
+      if (SCREENS.indexOf(slug(body.screen)) === -1) SCREENS.push(slug(body.screen))
+      choice = { value: slug(body.screen) }
+      $('screen').value = choice.value
       showRecent()
-      return true
+      return n
     }
-    if (r.status === 409 && r.body.cancelled) { say('Copy cancelled.'); return false }
+    if (r.status === 409 && r.body.cancelled) { say('Copy cancelled.'); return null }
     if (r.status === 409 && r.body.tabs) {
       say('Pick the tab to copy:')
       r.body.tabs.forEach(function (t, i) {
@@ -539,43 +627,58 @@ function send(extra) {
         b.type = 'button'
         b.className = 'btn'
         b.textContent = t.title || 'Tab ' + (i + 1)
-        b.onclick = function () { var e = {}; for (var k in extra) e[k] = extra[k]; e.tab = t.id; send(e) }
+        b.onclick = function () { var e = {}; for (var k in extra) e[k] = extra[k]; e.tab = t.id; start(); send(n, e).then(after) }
         $('tabs').appendChild(b)
       })
-      return false
+      return null
     }
     if (r.status === 409 && r.body.exists) {
-      if (confirm('State ' + body.state + ' already exists at this width. Replace?')) { var e = {}; for (var k in extra) e[k] = extra[k]; e.replace = true; return send(e) }
-      say('Not copied.')
-      return false
+      return askExisting(n).then(function (a) {
+        if (a.kind === 'cancel') return null
+        var e = {}
+        for (var k in extra) e[k] = extra[k]
+        if (a.kind === 'replace') e.replace = true
+        return send(a.n, e)
+      })
     }
     var err = r.body.error || 'Copy failed (' + r.status + ')'
     // A field's own error goes under that field.
     if (r.status === 400 && err.indexOf('screen') === 0) fieldError('screen', err)
     else if (r.status === 400 && (err.indexOf('state') === 0 || err.indexOf('label') === 0)) fieldError('name', err)
     else say(err, 'err')
-    return false
-  }, function () { say('Not copied: the session is stopped. In Claude Code, type /html-design start.', 'err'); return false })
+    return null
+  }, function () { say('Not copied: the session is stopped. In Claude Code, type /html-design start.', 'err'); return null })
 }
 function start() { working = true; sync(); say('') }
 function finish() { working = false; BUTTONS.forEach(function (id) { label(id) }); sync() }
+// The end of one copy run: on a save the name is cleared for the next copy.
+function after(saved) { finish(); if (saved) clearName() }
 $('copy').onclick = function () {
-  if (!check(names())) return
-  start()
-  label('copy', 'Copying…')
-  send({}).then(finish)
-}
-var exists = function (n) { return fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(n.state)).then(function (r) { return r.status === 200 }, function () { return false }) }
-// The server does the wait, so the copy runs while the user is in the app tab. Replace? is asked here first:
-// a dialog in a hidden tab waits until the tab is shown again. Cancel stops the server's wait.
-$('copyLater').onclick = function () {
   var n = names()
   if (!check(n)) return
   start()
-  exists(n).then(function (has) {
-    if (has && !confirm('State ' + n.state + ' already exists. Replace?')) { say('Not copied.'); return finish() }
-    var extra = { delay: 5, tab: tabPicked ? chosenTab() : undefined }
-    if (has) extra.replace = true
+  label('copy', 'Copying…')
+  sendPreset()
+  send(n, {}).then(after)
+}
+var exists = function (n) { return fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(n.state)).then(function (r) { return r.status === 200 }, function () { return false }) }
+// A taken name before a run: the same question, asked here before the run starts.
+function before(n) {
+  return exists(n).then(function (has) {
+    if (!has) return { n: n, extra: {} }
+    return askExisting(n).then(function (a) { return a.kind === 'cancel' ? null : { n: a.n, extra: a.kind === 'replace' ? { replace: true } : {} } })
+  })
+}
+// The server does the wait, so the copy runs while the user is in the app tab. Cancel stops the server's wait.
+$('copyLater').onclick = function () {
+  var n0 = names()
+  if (!check(n0)) return
+  start()
+  before(n0).then(function (go) {
+    if (!go) return finish()
+    var extra = go.extra
+    extra.delay = 5
+    extra.tab = tabPicked ? chosenTab() : undefined
     var left = 5
     var show = function () {
       $('later').hidden = false
@@ -584,36 +687,36 @@ $('copyLater').onclick = function () {
     }
     show()
     var timer = setInterval(function () { left = Math.max(0, left - 1); show() }, 1000)
-    return send(extra).then(function () { clearInterval(timer); $('later').hidden = true; finish() })
+    return send(go.n, extra).then(function (saved) { clearInterval(timer); $('later').hidden = true; after(saved) })
   })
 }
 $('cancel').onclick = function () { $('cancel').disabled = true; postJson('/__cancel', {}).catch(function () {}).then(function () { $('cancel').disabled = false }) }
 // Every width in turn: resize, let it settle, copy. The base width first; the window ends there. Each resize
 // brings the app tab to the front (Chrome lays out only that tab), so the user ends in the app tab: the
-// result shows there too, and Replace? is asked here before the run.
+// result shows there too.
 $('copy3').onclick = function () {
-  var n = names()
-  if (!check(n)) return
+  var n0 = names()
+  if (!check(n0)) return
   var tab = chosenTab()
-  var name = '"' + (n.label || n.state) + '"'
   start()
-  exists(n).then(function (has) {
-    if (has && !confirm('State ' + n.state + ' already exists. Replace?')) { say('Not copied.'); return finish() }
-    var extra = has ? { replace: true } : {}
-    var done = function (text) { return postJson('/__toast', { text: text, tab: tab }).catch(function () {}).then(function () { finish(); showTabs() }) }
+  before(n0).then(function (go) {
+    if (!go) return finish()
+    var n = go.n
+    var name = '"' + (n.label || n.state) + '"'
+    var done = function (text, saved) { return postJson('/__toast', { text: text, tab: tab }).catch(function () {}).then(function () { after(saved); showTabs() }) }
     var i = 0
     var step = function () {
       if (i === WIDTHS.length) {
-        var saved = 'Saved ' + name + ' at ' + WIDTHS.join(', ')
-        return postJson('/__resize', { width: WIDTHS[0], front: true, tab: tab }).then(function () { msg(esc(saved) + '. ' + openLink(viewerHref(n.screen, n.state)), 'ok'); return done(saved) })
+        var text = 'Saved ' + name + ' at ' + WIDTHS.join(', ')
+        return postJson('/__resize', { width: WIDTHS[0], front: true, tab: tab }).then(function () { msg(esc(text) + '. ' + openLink(viewerHref(n.screen, n.state)), 'ok'); return done(text, true) })
       }
       var w = WIDTHS[i]
       label('copy3', 'Width ' + (i + 1) + ' of ' + WIDTHS.length)
       say('Copying at ' + w + ' px…')
       return postJson('/__resize', { width: w, front: true, tab: tab })
         .then(function () { return new Promise(function (r) { setTimeout(r, 700) }) })
-        .then(function () { return send(extra) })
-        .then(function (ok) { if (!ok) return done('Not saved at ' + w + ': ' + $('msg').textContent); i += 1; return step() })
+        .then(function () { return send(n, go.extra) })
+        .then(function (ok) { if (!ok) return done('Not saved at ' + w + ': ' + $('msg').textContent, false); i += 1; return step() })
     }
     return step()
   })
@@ -904,6 +1007,11 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     const got = await readJson(req, res)
     if (!got) return
     const b = got.body
+    // { clear: true }: the Copy tab's name was cleared, so the chord has nothing to save.
+    if (b && b.clear === true) {
+      if (onPreset) onPreset(null)
+      return json(res, 200, { ok: true })
+    }
     const bad = validCopy(b)
     if (bad) return json(res, 400, { error: bad })
     if (onPreset) onPreset({ screen: b.screen, state: b.state, label: b.label })
