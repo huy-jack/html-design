@@ -151,7 +151,9 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
   async function resize(width, { front = null } = {}) {
     if (front) await front.bringToFront()
     const pages = appPages().sort((a, b) => (b === front) - (a === front))
+    // The pages of each window, and the windows that reached the width (only their pages skip emulation).
     const windows = new Map()
+    const reached = new Set()
     const noWindow = []
     for (const p of pages) {
       const s = await cdpOf(p)
@@ -166,15 +168,14 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
         await s.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } })
         await s.send('Browser.setWindowBounds', { windowId, bounds: { width: width + outer - inner } })
         const { bounds } = await s.send('Browser.getWindowBounds', { windowId })
-        if (bounds.width === width + outer - inner) windows.set(windowId, [])
+        if (bounds.width === width + outer - inner) reached.add(windowId)
       } catch (e) {
         console.error(`Window resize failed: ${e.message}`)
-        // A window that failed keeps its pages listed, so they get the emulated size.
         if (windowId === null) noWindow.push(p)
       }
     }
-    // Windows that did not reach the width hold their pages here; a page with no window is judged by itself.
-    for (const ps of windows.values()) for (const p of ps) await emulate(p, width)
+    // A window that did not reach the width (or failed) gets the emulated size; a page with no window is judged by itself.
+    for (const [id, ps] of windows) if (!reached.has(id)) for (const p of ps) await emulate(p, width)
     for (const p of noWindow) if (!(await reaches(p, width, 1000))) await emulate(p, width)
     if (front && !(await reaches(front, width, 3000))) console.error(`The app tab is not ${width}px wide after the resize.`)
     // The other tabs only get a moment: a tab behind may keep its old size until it is shown.
