@@ -137,5 +137,31 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
     }
   }
 
-  return { context, appPages, copyFrom, resize, cdpPort, targetIdOf, close: () => context.close() }
+  // What the tools show in an app tab: the countdown badge and the chord's toast. Marked data-hd-tool, so a
+  // copy never holds one; pointer-events none, so it never takes a click or a hover from the app.
+  const LABEL_CSS = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;pointer-events:none;padding:8px 12px;border-radius:8px;background:#121214;color:#ececee;font:500 13px/1.3 system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3)'
+  const addLabel = (kind, text, css) => {
+    const el = document.createElement('div')
+    el.setAttribute('data-hd-tool', '')
+    el.setAttribute(kind, '')
+    el.style.cssText = css
+    el.textContent = text
+    ;(document.body ?? document.documentElement).appendChild(el)
+    return el
+  }
+  // text null removes the badge.
+  const badge = (page, text) =>
+    page.evaluate(([add, t, css]) => {
+      const el = document.querySelector('[data-hd-tool][data-hd-badge]')
+      if (t === null) el?.remove()
+      else if (el) el.textContent = t
+      else new Function(`return (${add})`)()('data-hd-badge', t, css)
+    }, [addLabel.toString(), text, LABEL_CSS]).catch(() => {})
+  const toast = (page, text, ms = 2500) =>
+    page.evaluate(([add, t, css, wait]) => {
+      const el = new Function(`return (${add})`)()('data-hd-toast', t, css)
+      setTimeout(() => el.remove(), wait)
+    }, [addLabel.toString(), text, LABEL_CSS, ms]).catch(() => {})
+
+  return { context, appPages, copyFrom, resize, badge, toast, cdpPort, targetIdOf, close: () => context.close() }
 }

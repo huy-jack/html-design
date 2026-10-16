@@ -194,6 +194,43 @@ describe('redesigned viewer pages', () => {
   })
 })
 
+describe('Copy window in a browser', () => {
+  it('Copy window: a hint for open menus, and Copy at 3 widths says it resizes the window', () => {
+    const html = copyWindow({ screens: ['fixture'], widths: [1440, 1024, 375] })
+    expect(html).toContain('To copy an open menu: press Ctrl+Shift+S in the app tab, or click Copy in 5 s and open the menu.')
+    expect(html).toContain('Copy at 3 widths resizes the window, so open menus close.')
+  })
+  it('Copy in 5 s asks Replace? in the Copy tab first, then hands the wait to the server, with no tab', async () => {
+    const { r, cfg } = project()
+    writeFileSync(join(r, 'design/screens/home-page.html'), screen(['a']))
+    const tab = (t) => ({ title: async () => t, url: () => `http://localhost:3000/${t}`, evaluate: async () => 1440 })
+    const v = await viewer({ root: r, cfg, browser: stubBrowser([tab('one'), tab('two')]) })
+    const { chromium } = await import('playwright')
+    const br = await chromium.launch({ headless: true }); cleanup.push(() => br.close())
+    const pg = await br.newPage()
+    const sent = []
+    await pg.route('**/__copy', (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      sent.push(route.request().postDataJSON())
+      return route.fulfill({ status: 201, contentType: 'application/json', body: '{"saved":"x","images":0,"warnings":[]}' })
+    })
+    const dialogs = []
+    pg.on('dialog', (d) => { dialogs.push(d.message()); d.accept() })
+    await pg.goto(`${v.url}/__copy`)
+    await pg.waitForFunction(() => !document.getElementById('tabPick').hidden)
+    await pg.selectOption('#screen', '__new'); await pg.fill('#newScreen', 'Home Page'); await pg.fill('#state', 'a')
+    await pg.click('#copyLater')
+    await pg.waitForFunction(() => /^Saved a/.test(document.getElementById('msg').textContent))
+    expect(dialogs).toEqual(['State a already exists. Replace?'])
+    expect(sent).toEqual([{ screen: 'Home Page', state: 'a', delay: 5, replace: true }])
+    await pg.fill('#state', 'b')
+    await pg.click('#copyLater')
+    await pg.waitForFunction(() => /^Saved b/.test(document.getElementById('msg').textContent))
+    expect(dialogs).toHaveLength(1)
+    expect(sent[1]).toEqual({ screen: 'Home Page', state: 'b', delay: 5 })
+  }, 30000)
+})
+
 describe('POST guards and copy', () => {
   it('rejects foreign Origin and non-JSON on every POST (S6)', async () => {
     const { r, cfg } = project()
@@ -242,6 +279,20 @@ describe('POST guards and copy', () => {
     expect(await res.json()).toMatchObject({ exists: true })
     expect((await post(v.port, '/__copy', { screen: '', state: 'a' })).status).toBe(400)
     expect((await post(v.port, '/__copy', { screen: 'x', state: 'a b' })).status).toBe(400)
+  })
+  it('POST /__copy delay: whole seconds 1 to 10, else 400; then the only tab, or 409 when no tab is in view', async () => {
+    const { r, cfg } = project()
+    const b = stubBrowser([page('Home')])
+    const v = await viewer({ root: r, cfg, browser: b })
+    for (const delay of [0, 11, 1.5, '3', -1]) expect((await post(v.port, '/__copy', { screen: 'x', state: 'a', delay })).status).toBe(400)
+    expect(b.calls).toHaveLength(0)
+    const t0 = Date.now()
+    expect((await post(v.port, '/__copy', { screen: 'x', state: 'a', delay: 1 })).status).toBe(201)
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(950)
+    b.pages.push(page('Settings'))
+    const res = await post(v.port, '/__copy', { screen: 'x', state: 'a', delay: 1 })
+    expect(res.status).toBe(409)
+    expect((await res.json()).tabs).toHaveLength(2)
   })
   it('POST /__preset hands the Copy window names to onPreset', async () => {
     const { r, cfg } = project()
@@ -356,6 +407,34 @@ describe('copy through the real browser', () => {
     const text = readFileSync(join(r, 'design/screens/menus.html'), 'utf8')
     expect(stateFromText(text, 'user').html).toContain('id="hover-menu"')
     expect(stateFromText(text, 'scripted').html).not.toContain('id="hover-menu"')
+  }, 60000)
+
+  it('POST /__copy with delay waits, counts down in the app tabs, then copies the tab in view', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const { r, cfg } = project({ url: fx.a + '/login' })
+    const b = await openBrowser({ root: r, cfg, dataDir: dataDir(), profileDir: mkdtempSync(join(tmpdir(), 'prof-')), headless: true }); cleanup.push(() => b.close())
+    const v = await viewer({ root: r, cfg, browser: b })
+    const back = b.appPages()[0]; await back.goto(fx.a + '/login'); await back.goto(fx.a + '/menus')
+    const front = await b.context.newPage(); await front.goto(fx.a + '/menus')
+    await front.evaluate(() => document.querySelector('main').insertAdjacentHTML('beforeend', '<p>front-marker</p>'))
+    // Headless reports every tab as visible and focused: make the back tab report what a background tab does.
+    await back.evaluate(() => { Object.defineProperty(document, 'visibilityState', { get: () => 'hidden' }); document.hasFocus = () => false })
+    const badge = (p) => p.evaluate(() => document.querySelector('[data-hd-tool][data-hd-badge]')?.textContent ?? null)
+    const t0 = Date.now()
+    const res = post(v.port, '/__copy', { screen: 'Menus', state: 'later', delay: 2 })
+    await new Promise((ok) => setTimeout(ok, 700))
+    expect(await badge(front)).toMatch(/^Copy in [12]$/)
+    expect(await front.evaluate(() => getComputedStyle(document.querySelector('[data-hd-badge]')).pointerEvents)).toBe('none')
+    // Open the menu during the countdown, the way a user does.
+    await front.click('#open-click')
+    expect((await res).status).toBe(201)
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(1900)
+    const html = stateFromText(readFileSync(join(r, 'design/screens/menus.html'), 'utf8'), 'later').html
+    expect(html).toContain('front-marker')
+    expect(html).toContain('id="click-menu"')
+    expect(html).not.toContain('Copy in')
+    expect(await badge(front)).toBeNull()
+    expect(await badge(back)).toBeNull()
   }, 60000)
 
   it('fixture copy matches the app within 0.1% pixels (S2)', async () => {
