@@ -47,9 +47,10 @@ export const addToolStyle = (page, css) =>
     document.head.appendChild(s)
   }, css)
 
-export async function freezePage(page) {
+// keepPointer: a user's copy keeps the mouse where it is, so the hover menu or hover style they want stays.
+export async function freezePage(page, { keepPointer = false } = {}) {
   // The last scripted click leaves the mouse over the page, so some element shows its hover style.
-  await page.mouse.move(-10, -10)
+  if (!keepPointer) await page.mouse.move(-10, -10)
   await addToolStyle(page, '*, *::before, *::after { transition: none !important; }')
   await page.evaluate((fn) => new Function(`return (${fn})`)()(window), removeSvgAnimations.toString())
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))

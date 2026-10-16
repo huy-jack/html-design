@@ -339,6 +339,25 @@ describe('build error bar in the viewer (browser)', () => {
 })
 
 describe('copy through the real browser', () => {
+  it('a user copy keeps the hover menu open; a target: copy still moves the pointer away', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const { r, cfg } = project({ url: fx.a + '/login' })
+    const b = await openBrowser({ root: r, cfg, dataDir: dataDir(), profileDir: mkdtempSync(join(tmpdir(), 'prof-')), headless: true }); cleanup.push(() => b.close())
+    const v = await viewer({ root: r, cfg, browser: b })
+    const app = b.appPages()[0]
+    await app.goto(fx.a + '/login'); await app.goto(fx.a + '/menus')
+    await app.hover('#hover-target')
+    expect((await post(v.port, '/__copy', { screen: 'Menus', state: 'user' })).status).toBe(201)
+    const cdp = await b.context.newCDPSession(app)
+    const { targetInfo } = await cdp.send('Target.getTargetInfo')
+    await cdp.detach()
+    await app.hover('#open-click'); await app.hover('#hover-target')
+    expect((await post(v.port, '/__copy', { screen: 'Menus', state: 'scripted', tab: `target:${targetInfo.targetId}` })).status).toBe(201)
+    const text = readFileSync(join(r, 'design/screens/menus.html'), 'utf8')
+    expect(stateFromText(text, 'user').html).toContain('id="hover-menu"')
+    expect(stateFromText(text, 'scripted').html).not.toContain('id="hover-menu"')
+  }, 60000)
+
   it('fixture copy matches the app within 0.1% pixels (S2)', async () => {
     const fx = await startFixture(); cleanup.push(() => fx.close())
     const { r, cfg } = project({ url: fx.a + '/login', widths: [1440] })

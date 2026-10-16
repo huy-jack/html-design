@@ -460,7 +460,9 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
       if (!target) return json(res, 400, { error: `There is no tab ${b.tab}` })
     } else if (pages.length === 1) target = pages[0]
     else return json(res, 409, { tabs: await Promise.all(pages.map(async (p) => ({ id: tabId(p), title: await p.title().catch(() => '') }))) })
-    const run = copyChain.then(() => browser.copyFrom(target, { screen: b.screen, state: b.state, label: b.label, replace: b.replace === true }))
+    // A scripted copy (the automation port) moves the pointer away; a user's copy keeps it.
+    const scripted = typeof b.tab === 'string' && b.tab.startsWith('target:') ? { keepPointer: false } : {}
+    const run = copyChain.then(() => browser.copyFrom(target, { screen: b.screen, state: b.state, label: b.label, replace: b.replace === true, ...scripted }))
     copyChain = run.catch(() => {})
     let out
     try {

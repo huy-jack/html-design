@@ -65,11 +65,11 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
   const viewWidth = (page) => page.evaluate(() => [window.innerWidth, window.innerHeight])
 
   // Copies at the page's current size. A resize here would close the app's open menus (many close on window
-  // resize) and leave the page drawn wider than its window.
-  async function copyFrom(page, { screen, state, label, replace = false }) {
+  // resize) and leave the page drawn wider than its window. keepPointer false: a scripted copy (see freezePage).
+  async function copyFrom(page, { screen, state, label, replace = false, keepPointer = true }) {
     let clean_warn = null
     await settlePage(page)
-    await freezePage(page)
+    await freezePage(page, { keepPointer })
     const [w] = await viewWidth(page)
     const width = nearest(cfg.widths, w)
     if (width !== w) clean_warn = `window is ${w}px wide; stored as ${width}px`
