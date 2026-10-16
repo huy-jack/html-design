@@ -24,6 +24,21 @@ function dataDir() {
   return d
 }
 const profile = () => mkdtempSync(join(tmpdir(), 'prof-'))
+// A background tab in a headful window keeps its old size for seconds after the window changes. Headless
+// gives each tab its own window, so the test makes the page report that old size; null ends it.
+const stale = (page, w) => page.evaluate((w) => {
+  for (const k of ['innerWidth', 'outerWidth']) {
+    const d = Object.getOwnPropertyDescriptor(window, k)
+    if (!d.get.__real) Object.defineProperty(window, k, { configurable: true, get: Object.assign(function () { return window.__stale ?? d.get.call(window) }, { __real: true }) })
+  }
+  window.__stale = w ?? undefined
+}, w)
+async function windowWidth(b, page, width) {
+  const s = await b.context.newCDPSession(page)
+  const { windowId } = await s.send('Browser.getWindowForTarget')
+  await s.send('Browser.setWindowBounds', { windowId, bounds: { width } })
+  await s.detach()
+}
 
 let cleanup = []
 afterEach(async () => { for (const f of cleanup.reverse()) await f(); cleanup = [] })
@@ -44,17 +59,96 @@ describe('browser part', () => {
     expect(readFileSync(join(r, 'design/fonts.css'), 'utf8')).toContain('base64,')
   })
 
-  it('first copy resizes to the largest width (Review Focus 5)', async () => {
+  it('a first copy keeps the window size and is stored at the nearest set width, with a warning', async () => {
     const fx = await startFixture(); cleanup.push(() => fx.close())
     const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
     const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
     const page = b.appPages()[0]; await page.goto(fx.a + '/login')
-    await page.setViewportSize({ width: 375, height: 900 })
+    await page.setViewportSize({ width: 1000, height: 900 })
     const out = await b.copyFrom(page, { screen: 'Fixture', state: 'closed' })
     expect(out.status).toBe(201)
-    expect(readFileSync(join(r, 'design/screens/fixture.html'), 'utf8')).toMatch(/id="closed"[^>]*data-width="1440"|data-width="1440"[^>]*id="closed"/)
-    expect(await page.evaluate(() => window.innerWidth)).toBe(1440)
-    expect(await page.evaluate(() => window.innerHeight)).toBe(900)
+    expect(out.warnings).toContain('window is 1000px wide; stored as 1024px')
+    expect(readFileSync(join(r, 'design/screens/fixture.html'), 'utf8')).toMatch(/id="closed"[^>]*data-width="1024"|data-width="1024"[^>]*id="closed"/)
+    expect(await page.evaluate(() => [window.innerWidth, window.innerHeight])).toEqual([1000, 900])
+  })
+
+  it('copying a new state keeps an open click menu and never changes the page size', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const page = b.appPages()[0]; await page.goto(fx.a + '/login'); await page.goto(fx.a + '/menus')
+    await page.click('#open-click')
+    const size = () => page.evaluate(() => [window.innerWidth, window.outerWidth, window.innerHeight])
+    const before = await size()
+    const out = await b.copyFrom(page, { screen: 'Menus', state: 'open' })
+    expect(out.status).toBe(201)
+    expect(readFileSync(join(r, 'design/screens/menus.html'), 'utf8')).toContain('id="click-menu"')
+    expect(await size()).toEqual(before)
+    // No emulated size: the page is as wide as the window.
+    expect(before[0]).toBe(before[1])
+  })
+
+  it('resize sets the real window width and leaves no emulated size behind', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const first = b.appPages()[0]; await first.goto(fx.a + '/login')
+    const second = await b.context.newPage(); await second.goto(fx.a + '/menus')
+    const widths = (p) => p.evaluate(() => [window.innerWidth, window.outerWidth])
+    for (const w of [1024, 375, 1440]) {
+      await b.resize(w)
+      expect(await widths(first)).toEqual([w, w])
+      expect(await widths(second)).toEqual([w, w])
+    }
+  })
+
+  it('resize trusts the window bounds: a tab that reports a stale size gets no emulated size', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const page = b.appPages()[0]; await page.goto(fx.a + '/login')
+    await stale(page, 1200)
+    await b.resize(1440)
+    await stale(page, null)
+    // The user then changes the window: the page follows it, it does not stay at an emulated 1440.
+    await windowWidth(b, page, 1100)
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1100)
+  })
+
+  it('resize with front brings that tab to the front and returns once it is laid out at the width', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const first = b.appPages()[0]; await first.goto(fx.a + '/login')
+    const second = await b.context.newPage(); await second.goto(fx.a + '/menus')
+    // Behind, the tab keeps its old size; in front, it is laid out.
+    await stale(second, 1200)
+    const toFront = second.bringToFront.bind(second)
+    let fronts = 0
+    second.bringToFront = async () => { fronts += 1; await toFront(); await stale(second, null) }
+    await b.resize(1024, { front: second })
+    expect(fronts).toBe(1)
+    expect(await second.evaluate(() => [window.innerWidth, window.outerWidth])).toEqual([1024, 1024])
+  })
+
+  it('a copy of a tab that reports a stale size brings it to the front first, so it is stored at the window width', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const page = b.appPages()[0]; await page.goto(fx.a + '/login')
+    await windowWidth(b, page, 1024)
+    await stale(page, 1300)
+    const toFront = page.bringToFront.bind(page)
+    let fronts = 0
+    page.bringToFront = async () => { fronts += 1; await toFront(); await stale(page, null) }
+    const out = await b.copyFrom(page, { screen: 'Fixture', state: 'behind' })
+    expect(out.status).toBe(201)
+    expect(fronts).toBe(1)
+    expect(out.warnings.join(' ')).not.toContain('1300')
+    expect(readFileSync(join(r, 'design/screens/fixture.html'), 'utf8')).toMatch(/id="behind"[^>]*data-width="1024"|data-width="1024"[^>]*id="behind"/)
+    // A tab that is laid out is not brought to the front.
+    await b.copyFrom(page, { screen: 'Fixture', state: 'front' })
+    expect(fronts).toBe(1)
   })
 
   it('appPages excludes viewer pages (Review Focus 3)', async () => {

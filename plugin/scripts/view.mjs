@@ -19,6 +19,7 @@ const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 const BODY_LIMIT = 16 * 1024
 const DEBOUNCE_MS = 100
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let noteSeq = 0
 
 const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi
@@ -43,9 +44,12 @@ function validCopy(b) {
   if (typeof b.state !== 'string' || !STATE_ID.test(b.state)) return 'state must be a state id (letters, digits, - _ .)'
   if (b.label != null && (typeof b.label !== 'string' || b.label.length > 200)) return 'label must be at most 200 characters'
   if (b.replace != null && typeof b.replace !== 'boolean') return 'replace must be true or false'
-  if (b.tab != null && !isInt(b.tab, 0, 1000) && !(typeof b.tab === 'string' && /^(t-\d{1,9}|target:[A-Za-z0-9]{1,64})$/.test(b.tab))) return 'tab must be a tab id from the tabs list, target:<CDP target id>, or a tab number'
+  if (!validTab(b.tab)) return TAB_RULE
+  if (b.delay != null && !isInt(b.delay, 1, 10)) return 'delay must be whole seconds, 1 to 10'
   return null
 }
+const TAB_RULE = 'tab must be a tab id from the tabs list, target:<CDP target id>, or a tab number'
+const validTab = (t) => t == null || isInt(t, 0, 1000) || (typeof t === 'string' && /^(t-\d{1,9}|target:[A-Za-z0-9]{1,64})$/.test(t))
 
 function readBody(req, limit) {
   return new Promise((ok, fail) => {
@@ -183,6 +187,7 @@ label{display:block;color:var(--mute);font-size:12px;margin:16px 0 6px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}#newScreen{margin-top:8px}
 .go{margin:20px 16px 0;width:calc(100% - 32px);height:40px;border-radius:9px;font-size:13.5px}.go .kbd{color:#55555c;border-color:#c8c8cc}
 .alt{margin:8px 16px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hint{margin:8px 16px 0;color:var(--mute);font-size:12px}
 #msg{margin:12px 16px 0;min-height:18px;font-size:12.5px;color:var(--dim)}#msg.err{color:var(--bad)}#msg.ok{color:var(--ok)}
 #tabs{margin:8px 16px 0;display:grid;gap:6px}#tabs button{justify-content:flex-start}
 .rec{margin-top:20px;border-top:1px solid var(--line);padding:14px 16px 24px}
@@ -200,6 +205,8 @@ label{display:block;color:var(--mute);font-size:12px;margin:16px 0 6px}
 <div class="two"><div><label for="state">State id</label><input id="state" class="field mono" placeholder="menu-open"></div><div><label for="label">Label</label><input id="label" class="field" placeholder="Menu open"></div></div></div>
 <button type="button" id="copy" class="ib p go">${ICONS.copy}Copy state<span class="kbd">Ctrl Shift S</span></button>
 <div class="alt"><button type="button" id="copyLater" class="ib">Copy in 5 s</button><button type="button" id="copy3" class="ib">Copy at ${widths.length} widths</button></div>
+<p class="hint">To copy an open menu: press Ctrl+Shift+S in the app tab, or click Copy in 5 s and open the menu.</p>
+<p class="hint">Copy at ${widths.length} widths resizes the window, so open menus close.</p>
 <div id="tabs"></div><div id="msg" role="status"></div>
 <div class="rec"><h4>Recent</h4><div id="recent"><div class="empty">Copies you make show up here.</div></div></div>
 <script>
@@ -230,7 +237,9 @@ function showTabs() {
     if (t && t.width) Array.prototype.forEach.call(document.querySelectorAll('[data-width]'), function (b) { b.setAttribute('aria-pressed', String(Number(b.dataset.width) === t.width)) })
   }, function () { $('live').innerHTML = '<span class="dot off"></span>Session stopped' })
 }
-$('tabPick').onchange = showTabs
+// A delayed copy names a tab only when the user picked one; else the server takes the tab the user looks at.
+var tabPicked = false
+$('tabPick').onchange = function () { tabPicked = true; showTabs() }
 function showRecent() {
   return fetch('/__recent').then(function (r) { return r.json() }).then(function (list) {
     if (!list.length) return
@@ -298,26 +307,46 @@ function send(extra) {
 }
 function busy(on) { ['copy', 'copyLater', 'copy3'].forEach(function (id) { $(id).disabled = on }) }
 $('copy').onclick = function () { msg('Copying…'); busy(true); send({}).then(function () { busy(false) }) }
+// The server does the wait, so the copy runs while the user is in the app tab. Replace? is asked here first:
+// a dialog in a hidden tab waits until the tab is shown again.
+var slug = ${slugScreen.toString()}
 $('copyLater').onclick = function () {
-  var n = 5
+  var n = names()
   busy(true)
-  var tick = function () { if (n === 0) { msg('Copying…'); return send({}).then(function () { busy(false) }) } msg('Copy in ' + n + ' s'); n -= 1; setTimeout(tick, 1000) }
-  tick()
+  fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(n.state)).then(function (r) { return r.status === 200 }, function () { return false }).then(function (has) {
+    if (has && !confirm('State ' + n.state + ' already exists. Replace?')) { msg('Not copied.'); busy(false); return }
+    var extra = { delay: 5, tab: tabPicked ? chosenTab() : undefined }
+    if (has) extra.replace = true
+    msg('Copy in 5 s: switch to the app tab and open the menu.')
+    return send(extra).then(function () { busy(false) })
+  })
 }
-// Every width in turn: resize the app tab, let it settle, copy. The base width first; the window ends there.
+// Every width in turn: resize, let it settle, copy. The base width first; the window ends there. Each resize
+// brings the app tab to the front (Chrome lays out only that tab), so the user ends in the app tab: the
+// result shows there too, and Replace? is asked here before the run.
 $('copy3').onclick = function () {
+  var n = names()
+  var tab = chosenTab()
   busy(true)
-  var i = 0
-  var step = function () {
-    if (i === WIDTHS.length) return postJson('/__resize', { width: WIDTHS[0] }).then(function () { busy(false); showTabs(); msg('Saved ' + names().state + ' at ' + WIDTHS.join(', '), 'ok') })
-    var w = WIDTHS[i]
-    msg('Copying at ' + w + ' px…')
-    return postJson('/__resize', { width: w })
-      .then(function () { return new Promise(function (r) { setTimeout(r, 700) }) })
-      .then(function () { return send({}) })
-      .then(function (ok) { if (!ok) { busy(false); return } i += 1; return step() })
-  }
-  step()
+  fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(n.state)).then(function (r) { return r.status === 200 }, function () { return false }).then(function (has) {
+    if (has && !confirm('State ' + n.state + ' already exists. Replace?')) { msg('Not copied.'); busy(false); return }
+    var extra = has ? { replace: true } : {}
+    var done = function (text) { return postJson('/__toast', { text: text, tab: tab }).catch(function () {}).then(function () { busy(false); showTabs() }) }
+    var i = 0
+    var step = function () {
+      if (i === WIDTHS.length) {
+        var saved = 'Saved ' + n.state + ' at ' + WIDTHS.join(', ')
+        return postJson('/__resize', { width: WIDTHS[0], front: true, tab: tab }).then(function () { msg(saved, 'ok'); return done(saved) })
+      }
+      var w = WIDTHS[i]
+      msg('Copying at ' + w + ' px…')
+      return postJson('/__resize', { width: w, front: true, tab: tab })
+        .then(function () { return new Promise(function (r) { setTimeout(r, 700) }) })
+        .then(function () { return send(extra) })
+        .then(function (ok) { if (!ok) return done('Not saved at ' + w + ': ' + $('msg').textContent); i += 1; return step() })
+    }
+    return step()
+  })
 }
 showTabs(); showRecent(); setInterval(showTabs, 2000)
 </script></body></html>`
@@ -362,7 +391,7 @@ export function stateFromText(text, id) {
   return null
 }
 
-// browser: the session's app browser ({ appPages, copyFrom, resize, targetIdOf }), or null when no browser is open.
+// browser: the session's app browser ({ appPages, copyFrom, resize, targetIdOf, badge, toast }), or null when no browser is open.
 export async function createViewServer({ root, cfg, dataDir = null, port = 0, browser = null, watch: doWatch = true, build: buildOpt = true, onPreset = null }) {
   if (dataDir) setDataDir(dataDir)
   const build = buildOpt
@@ -437,6 +466,33 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     if (!tabIds.has(p)) { tabSeq += 1; tabIds.set(p, `t-${tabSeq}`) }
     return tabIds.get(p)
   }
+  // The tab the user looks at. A background tab reports hidden. Playwright makes every page report focus,
+  // so hasFocus decides nothing in the session browser; it does when the page itself knows better.
+  const looking = async (p) => {
+    try { return await p.evaluate(() => document.visibilityState === 'visible' && document.hasFocus()) } catch { return false }
+  }
+  // When the user last clicked, typed or moved the pointer in the tab (the init script records it); 0 if never.
+  const lastInput = async (p) => {
+    try { return Number(await p.evaluate(() => window.__hdLastInput ?? 0)) || 0 } catch { return 0 }
+  }
+  // The app tab a request names: { target } (none when tab is not set) or { error }.
+  async function namedTab(pages, tab) {
+    let target
+    if (typeof tab === 'string' && tab.startsWith('target:')) {
+      // A script that drives the browser over the automation port names its tab by CDP target id.
+      const want = tab.slice('target:'.length)
+      for (const p of pages) if (!target && (await browser.targetIdOf(p).catch(() => null)) === want) target = p
+      if (!target) return { error: `Tab ${tab} is not open.` }
+    } else if (typeof tab === 'string') {
+      target = pages.find((p) => tabId(p) === tab)
+      if (!target) return { error: `Tab ${tab} is closed. Copy again to see the open tabs.` }
+    } else if (tab != null) {
+      // A tab number (0 is the first): kept for older callers.
+      target = pages[tab]
+      if (!target) return { error: `There is no tab ${tab}` }
+    }
+    return { target }
+  }
   async function postCopy(req, res) {
     const got = await readJson(req, res)
     if (!got) return
@@ -444,23 +500,36 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     const bad = validCopy(b)
     if (bad) return json(res, 400, { error: bad })
     const pages = browser ? browser.appPages() : []
-    if (!pages.length) return json(res, 503, { error: 'No app page is open. Start the session and open the app.' })
-    let target
-    if (typeof b.tab === 'string' && b.tab.startsWith('target:')) {
-      // A script that drives the browser over the automation port names its tab by CDP target id.
-      const want = b.tab.slice('target:'.length)
-      for (const p of pages) if (!target && (await browser.targetIdOf(p).catch(() => null)) === want) target = p
-      if (!target) return json(res, 400, { error: `Tab ${b.tab} is not open.` })
-    } else if (typeof b.tab === 'string') {
-      target = pages.find((p) => tabId(p) === b.tab)
-      if (!target) return json(res, 400, { error: `Tab ${b.tab} is closed. Copy again to see the open tabs.` })
-    } else if (b.tab != null) {
-      // A tab number (0 is the first): kept for older callers.
-      target = pages[b.tab]
-      if (!target) return json(res, 400, { error: `There is no tab ${b.tab}` })
-    } else if (pages.length === 1) target = pages[0]
-    else return json(res, 409, { tabs: await Promise.all(pages.map(async (p) => ({ id: tabId(p), title: await p.title().catch(() => '') }))) })
-    const run = copyChain.then(() => browser.copyFrom(target, { screen: b.screen, state: b.state, label: b.label, replace: b.replace === true }))
+    const noPage = () => json(res, 503, { error: 'No app page is open. Start the session and open the app.' })
+    if (!pages.length) return noPage()
+    let { target, error } = await namedTab(pages, b.tab)
+    if (error) return json(res, 400, { error })
+    const started = Date.now()
+    if (b.delay) {
+      // Copy in N s: meanwhile the user is in the app tab, opening a menu. A badge counts down there and is
+      // gone before the copy settles. The tab is picked when the wait ends: the one the user used last.
+      const badge = (ps, text) => Promise.all(ps.map((p) => browser.badge?.(p, text)))
+      for (let n = b.delay; n > 0; n--) {
+        await badge(target ? [target] : browser.appPages(), `Copy in ${n}`)
+        await sleep(1000)
+      }
+      await badge(browser.appPages(), null)
+      if (target && !browser.appPages().includes(target)) return json(res, 400, { error: `Tab ${b.tab} closed during the wait.` })
+    }
+    if (!target) {
+      const now = browser.appPages()
+      if (!now.length) return noPage()
+      // Input during the wait names the tab; else the tab in view; else the only tab.
+      const used = b.delay ? (await Promise.all(now.map(async (p) => ({ p, at: await lastInput(p) })))).filter((x) => x.at > started).sort((x, y) => y.at - x.at) : []
+      const inView = b.delay && !used.length ? (await Promise.all(now.map(async (p) => ((await looking(p)) ? p : null)))).filter(Boolean) : []
+      if (used.length) target = used[0].p
+      else if (inView.length === 1) target = inView[0]
+      else if (now.length === 1) target = now[0]
+      else return json(res, 409, { tabs: await Promise.all(now.map(async (p) => ({ id: tabId(p), title: await p.title().catch(() => '') }))) })
+    }
+    // A scripted copy (the automation port) moves the pointer away; a user's copy keeps it.
+    const scripted = typeof b.tab === 'string' && b.tab.startsWith('target:') ? { keepPointer: false } : {}
+    const run = copyChain.then(() => browser.copyFrom(target, { screen: b.screen, state: b.state, label: b.label, replace: b.replace === true, ...scripted }))
     copyChain = run.catch(() => {})
     let out
     try {
@@ -477,11 +546,39 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
   async function postResize(req, res) {
     const got = await readJson(req, res)
     if (!got) return
-    const w = got.body?.width
+    const b = got.body ?? {}
+    const w = b.width
     if (!cfg.widths.includes(w)) return json(res, 400, { error: `width must be one of ${cfg.widths.join(', ')}` })
+    if (b.front != null && typeof b.front !== 'boolean') return json(res, 400, { error: 'front must be true or false' })
+    if (!validTab(b.tab)) return json(res, 400, { error: TAB_RULE })
     if (!browser) return json(res, 503, { error: 'No app browser is open.' })
-    await browser.resize(w)
+    // front: a copy at this width follows, and Chrome lays out only the tab in front. The tab: the named
+    // one, else the one the user used last, else the first.
+    let front = null
+    if (b.front) {
+      const pages = browser.appPages()
+      const { target, error } = await namedTab(pages, b.tab)
+      if (error) return json(res, 400, { error })
+      const used = await Promise.all(pages.map(async (p) => ({ p, at: await lastInput(p) })))
+      front = target ?? used.sort((x, y) => y.at - x.at)[0]?.p ?? null
+    }
+    await browser.resize(w, front ? { front } : undefined)
     return json(res, 200, { width: w })
+  }
+
+  // A short text in the app tab: where the user is when a run started in the Copy tab ends.
+  async function postToast(req, res) {
+    const got = await readJson(req, res)
+    if (!got) return
+    const b = got.body ?? {}
+    if (typeof b.text !== 'string' || !b.text.trim() || b.text.length > 200) return json(res, 400, { error: 'text must be 1 to 200 characters' })
+    if (!validTab(b.tab)) return json(res, 400, { error: TAB_RULE })
+    if (!browser) return json(res, 503, { error: 'No app browser is open.' })
+    const pages = browser.appPages()
+    const { target, error } = await namedTab(pages, b.tab)
+    if (error) return json(res, 400, { error })
+    await Promise.all((target ? [target] : pages).map((p) => browser.toast?.(p, b.text)))
+    return json(res, 200, { ok: true })
   }
 
   // The Copy window reports its names (screen, state, label) so the keyboard chord can reuse them.
@@ -511,6 +608,7 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
       if (path === '/__copy') return void postCopy(req, res).catch(fail(res))
       if (path === '/__preset') return void postPreset(req, res).catch(fail(res))
       if (path === '/__resize') return void postResize(req, res).catch(fail(res))
+      if (path === '/__toast') return void postToast(req, res).catch(fail(res))
       return res.writeHead(404).end('Not found')
     }
     if (path === '/') {

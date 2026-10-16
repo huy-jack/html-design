@@ -6,16 +6,17 @@ import { processCapture } from './capture-core.mjs'
 import { darkMarker } from './config.mjs'
 import { cssUrls, splitFontFaces } from './css-sort.mjs'
 import { dataPaths, loadDep } from './deps.mjs'
-import { parseScreen, slugScreen } from './screen-file.mjs'
 import { freezePage, settlePage } from './settle.mjs'
 import { adapterFor } from './styles/index.mjs'
 
 const CLEAN_SRC = readFileSync(join(import.meta.dirname, 'clean.mjs'), 'utf8').replace(/^export\s+/m, '')
 
-// Ctrl+Shift+S on any app page asks the session to copy that page.
+// Ctrl+Shift+S on any app page asks the session to copy that page. __hdLastInput: when the user last used
+// this tab. A headful Playwright browser reports every tab visible and focused, so this names the tab in use.
 const CHORD_SCRIPT = `window.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) { e.preventDefault(); window.__hdCopy && window.__hdCopy() }
-}, true)`
+}, true)
+for (const t of ['pointerdown', 'keydown', 'pointerover']) window.addEventListener(t, () => { window.__hdLastInput = Date.now() }, true)`
 
 const nearest = (widths, w) => widths.reduce((best, x) => (Math.abs(x - w) < Math.abs(best - w) ? x : best), widths[0])
 
@@ -65,16 +66,13 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
 
   const viewWidth = (page) => page.evaluate(() => [window.innerWidth, window.innerHeight])
 
-  async function copyFrom(page, { screen, state, label, replace = false }) {
-    const file = join(root, cfg.dir, 'screens', `${slugScreen(screen)}.html`)
-    const known = existsSync(file) && parseScreen(readFileSync(file, 'utf8')).states.some((s) => s.id === state)
+  // Copies at the page's current size. A resize here would close the app's open menus (many close on window
+  // resize) and leave the page drawn wider than its window. keepPointer false: a scripted copy (see freezePage).
+  async function copyFrom(page, { screen, state, label, replace = false, keepPointer = true }) {
     let clean_warn = null
-    if (!known) {
-      const [, h] = await viewWidth(page)
-      await page.setViewportSize({ width: cfg.widths[0], height: h })
-    }
+    await layOut(page)
     await settlePage(page)
-    await freezePage(page)
+    await freezePage(page, { keepPointer })
     const [w] = await viewWidth(page)
     const width = nearest(cfg.widths, w)
     if (width !== w) clean_warn = `window is ${w}px wide; stored as ${width}px`
@@ -110,12 +108,105 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
     return processCapture({ root, cfg: { ...cfg, url: pageUrl }, screen, state, label, width, replace, clean, sheetTexts, files })
   }
 
-  async function resize(width) {
-    for (const p of appPages()) {
-      const [, h] = await viewWidth(p)
-      await p.setViewportSize({ width, height: h })
-    }
+  // One CDP session per app page, kept open: an emulated size lasts only while the session that set it is
+  // attached, and only that session can clear it.
+  const sessions = new WeakMap()
+  const cdpOf = async (p) => {
+    if (!sessions.has(p)) sessions.set(p, await context.newCDPSession(p))
+    return sessions.get(p)
+  }
+  // The width each page is emulated at, while it is.
+  const emulated = new WeakMap()
+  const emulate = async (p, width) => {
+    const [, h] = await viewWidth(p)
+    await (await cdpOf(p)).send('Emulation.setDeviceMetricsOverride', { width, height: h, deviceScaleFactor: 0, mobile: false })
+    emulated.set(p, width)
+  }
+  // Polls until the page is width wide; false after ms.
+  const reaches = async (p, width, ms) => {
+    for (const until = Date.now() + ms; Date.now() < until; await new Promise((r) => setTimeout(r, 50))) if ((await viewWidth(p).catch(() => [0]))[0] === width) return true
+    return false
+  }
+  // A tab behind keeps its old size after the window changed: it is not laid out. Bring it to the front and
+  // wait (at most 2 s), so a copy is never stored at a stale width. A page at our emulated width is laid out.
+  async function layOut(page) {
+    if (emulated.has(page)) return
+    let want
+    try {
+      const s = await cdpOf(page)
+      const { windowId } = await s.send('Browser.getWindowForTarget')
+      const { bounds } = await s.send('Browser.getWindowBounds', { windowId })
+      const [inner, outer] = await page.evaluate(() => [window.innerWidth, window.outerWidth])
+      if (outer === bounds.width) return
+      want = bounds.width - (outer - inner)
+    } catch { return }
+    await page.bringToFront()
+    await reaches(page, want, 2000)
   }
 
-  return { context, appPages, copyFrom, resize, cdpPort, targetIdOf, close: () => context.close() }
+  // Resizes the real window (all app tabs share it), so the page follows the window as before. The window
+  // bounds decide: Chrome lays out only the tab in front, so a tab behind reports its old size for seconds.
+  // A width the window cannot reach (its minimum is about 500 px on macOS) falls back to an emulated size.
+  // front: that app tab comes to the front first and is laid out at the new width before this returns.
+  async function resize(width, { front = null } = {}) {
+    if (front) await front.bringToFront()
+    const pages = appPages().sort((a, b) => (b === front) - (a === front))
+    // The pages of each window, and the windows that reached the width (only their pages skip emulation).
+    const windows = new Map()
+    const reached = new Set()
+    const noWindow = []
+    for (const p of pages) {
+      const s = await cdpOf(p)
+      await s.send('Emulation.clearDeviceMetricsOverride')
+      emulated.delete(p)
+      let windowId = null
+      try {
+        ;({ windowId } = await s.send('Browser.getWindowForTarget'))
+        if (windows.has(windowId)) { windows.get(windowId).push(p); continue }
+        windows.set(windowId, [p])
+        const [inner, outer] = await p.evaluate(() => [window.innerWidth, window.outerWidth])
+        await s.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } })
+        await s.send('Browser.setWindowBounds', { windowId, bounds: { width: width + outer - inner } })
+        const { bounds } = await s.send('Browser.getWindowBounds', { windowId })
+        if (bounds.width === width + outer - inner) reached.add(windowId)
+      } catch (e) {
+        console.error(`Window resize failed: ${e.message}`)
+        if (windowId === null) noWindow.push(p)
+      }
+    }
+    // A window that did not reach the width (or failed) gets the emulated size; a page with no window is judged by itself.
+    for (const [id, ps] of windows) if (!reached.has(id)) for (const p of ps) await emulate(p, width)
+    for (const p of noWindow) if (!(await reaches(p, width, 1000))) await emulate(p, width)
+    if (front && !(await reaches(front, width, 3000))) console.error(`The app tab is not ${width}px wide after the resize.`)
+    // The other tabs only get a moment: a tab behind may keep its old size until it is shown.
+    await Promise.all(appPages().map((p) => reaches(p, width, 1000)))
+  }
+
+  // What the tools show in an app tab: the countdown badge and the chord's toast. Marked data-hd-tool, so a
+  // copy never holds one; pointer-events none, so it never takes a click or a hover from the app.
+  const LABEL_CSS = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;pointer-events:none;padding:8px 12px;border-radius:8px;background:#121214;color:#ececee;font:500 13px/1.3 system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3)'
+  const addLabel = (kind, text, css) => {
+    const el = document.createElement('div')
+    el.setAttribute('data-hd-tool', '')
+    el.setAttribute(kind, '')
+    el.style.cssText = css
+    el.textContent = text
+    ;(document.body ?? document.documentElement).appendChild(el)
+    return el
+  }
+  // text null removes the badge.
+  const badge = (page, text) =>
+    page.evaluate(([add, t, css]) => {
+      const el = document.querySelector('[data-hd-tool][data-hd-badge]')
+      if (t === null) el?.remove()
+      else if (el) el.textContent = t
+      else new Function(`return (${add})`)()('data-hd-badge', t, css)
+    }, [addLabel.toString(), text, LABEL_CSS]).catch(() => {})
+  const toast = (page, text, ms = 2500) =>
+    page.evaluate(([add, t, css, wait]) => {
+      const el = new Function(`return (${add})`)()('data-hd-toast', t, css)
+      setTimeout(() => el.remove(), wait)
+    }, [addLabel.toString(), text, LABEL_CSS, ms]).catch(() => {})
+
+  return { context, appPages, copyFrom, resize, badge, toast, cdpPort, targetIdOf, close: () => context.close() }
 }

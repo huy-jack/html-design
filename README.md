@@ -97,10 +97,11 @@ The first time, log in to your app in that browser window. The login is saved in
 
 Rules:
 
-- The first copy of a state sets the app window to the largest width first. That copy is the base.
+- A copy never resizes the app window, so open menus stay open. The first copy of a state is the base, stored at the set width nearest to the window (a note says so when the window is another width). Use the width buttons to set the window first.
 - The same state at the same width asks "Replace?".
 - The same state at another width (use the width buttons) is stored as a width copy, but only if the page differs.
 - With 2 or more app tabs open, the Copy window asks which tab.
+- To copy an open menu: press **Ctrl+Shift+S** in the app tab, or click **Copy in 5 s**, go to the app tab and open the menu. The copy is of the app tab you last clicked, typed or moved the pointer in during the wait. A small "Copy in 3" badge counts down in the app tab; it is never in the copy. After Ctrl+Shift+S, a short note in the app tab says whether the copy was saved.
 
 You can also ask Claude: "copy this as checkout empty".
 
@@ -150,7 +151,7 @@ After each edit Claude runs `/html-design check`. Undo is your own git.
 - Linked buttons have a pointer. Click one to move to its state with its motion. Motion plays in Chrome 111+, Safari 18+ and Firefox 144+.
 - A red bar shows a CSS build error. The last good CSS stays in use.
 - A link to one state: `screens/<screen>.html#<state>@<width>`.
-- **Copy window**: shows the app tab it will copy (pick one when several are open) and its width. **Copy state**, **Copy in 5 s**, or **Copy at 3 widths** (resizes the app tab and copies each width). **Recent** lists this session's copies with a preview.
+- **Copy window**: shows the app tab it will copy (pick one when several are open) and its width. **Copy state**, **Copy in 5 s**, or **Copy at 3 widths** (resizes the browser window and copies each width, so open menus close; it brings the app tab to the front, and a short note there says what was saved). **Recent** lists this session's copies with a preview.
 - The viewer loads the Geist font from Google Fonts. Offline, it uses the system font.
 
 ## Config: `design-mode.json`

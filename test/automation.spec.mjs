@@ -25,7 +25,7 @@ describe('automation port', () => {
     stops.push(async () => { await s.close(); fx.close() })
     const info = JSON.parse(readFileSync(join(r, 'design/.local/session.json'), 'utf8'))
     expect(info.cdpPort).toBeGreaterThan(0)
-    expect(info.version).toBe('0.3.0')
+    expect(info.version).toBe('0.3.1')
     expect(existsSync(join(info.pluginRoot, 'scripts/build-css.mjs'))).toBe(true)
     await s.browser.appPages()[0].waitForLoadState('load')
     const remote = await chromium.connectOverCDP(`http://127.0.0.1:${info.cdpPort}`)
@@ -42,6 +42,38 @@ describe('automation port', () => {
     await mine.close()
     await remote.close()
     expect(s.browser.appPages().length).toBe(1)
+  }, 60000)
+
+  it('the chord shows its result in the app tab after the copy, and the toast is never copied', async () => {
+    const fx = await startFixture()
+    const r = mkdtempSync(join(tmpdir(), 'auto-'))
+    execFileSync('git', ['init', '-q'], { cwd: r })
+    writeConfig(r, { url: fx.a + '/login' })
+    makeSkeleton(r, readConfig(r))
+    const s = await startSession({ root: r, cfg: readConfig(r), data: makeData({ version: '1.56.1\n' }), headless: true, openPages: false })
+    stops.push(async () => { await s.close(); fx.close() })
+    const app = s.browser.appPages()[0]
+    await app.waitForLoadState('load')
+    const file = join(r, 'design/screens/auto.html')
+    const preset = (state) => fetch(`${s.view.url}/__preset`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ screen: 'auto', state }) })
+    // Resolves once a toast with this text is up; says whether the copy was on disk by then.
+    const toast = (text) => app.waitForFunction((t) => [...document.querySelectorAll('[data-hd-tool][data-hd-toast]')].some((el) => el.textContent === t), text).then(() => existsSync(file))
+    await app.keyboard.press('Control+Shift+S')
+    expect(await toast('Fill in a screen and state in the Copy tab first')).toBe(false)
+    await preset('chord')
+    await app.keyboard.press('Control+Shift+S')
+    expect(await toast('Saved chord')).toBe(true)
+    await preset('chord2')
+    await app.keyboard.press('Control+Shift+S')
+    await toast('Saved chord2')
+    const text = readFileSync(file, 'utf8')
+    expect(text).toContain('id="chord2"')
+    expect(text).not.toContain('Saved chord')
+    await preset('chord')
+    await app.keyboard.press('Control+Shift+S')
+    await toast('chord already exists: change the state id in the Copy tab')
+    // Gone after about 2.5 s.
+    await app.waitForFunction(() => !document.querySelector('[data-hd-toast]'), null, { timeout: 5000 })
   }, 60000)
 
   it('a copy never stores the tools\' own freeze style in page.css', async () => {

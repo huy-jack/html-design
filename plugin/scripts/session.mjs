@@ -112,6 +112,8 @@ export async function startSession({ root, cfg, data, headless = false, openPage
     copyFrom: (...a) => browser.copyFrom(...a),
     resize: (...a) => browser.resize(...a),
     targetIdOf: (...a) => browser.targetIdOf(...a),
+    badge: (...a) => browser.badge(...a),
+    toast: (...a) => browser.toast(...a),
   }
   // Names from the Copy window; the chord reuses them.
   let preset = null
@@ -119,12 +121,21 @@ export async function startSession({ root, cfg, data, headless = false, openPage
   const origin = `http://127.0.0.1:${view.port}`
   const profileDir = join(dataPaths(data).profiles, createHash('sha256').update(root).digest('hex').slice(0, 12))
   mkdirSync(profileDir, { recursive: true })
+  // The user is in the app tab, so the result shows there too: a toast, added only after the copy is done.
   const onChord = async (page) => {
-    if (!preset) return console.warn('Chord ignored: fill in a screen and state in the Copy window first.')
+    const p = preset
+    if (!p) {
+      console.warn('Chord ignored: fill in a screen and state in the Copy window first.')
+      return browser.toast(page, 'Fill in a screen and state in the Copy tab first')
+    }
     try {
-      const out = await browser.copyFrom(page, { screen: preset.screen, state: preset.state, label: preset.label })
-      console.log(out.status === 201 ? `Chord copy saved ${out.saved}` : `Chord copy skipped: state ${preset.state} already exists`)
-    } catch (e) { console.error(`Chord copy failed: ${e.message}`) }
+      const out = await browser.copyFrom(page, { screen: p.screen, state: p.state, label: p.label })
+      console.log(out.status === 201 ? `Chord copy saved ${out.saved}` : `Chord copy skipped: state ${p.state} already exists`)
+      await browser.toast(page, out.status === 201 ? `Saved ${p.state}` : `${p.state} already exists: change the state id in the Copy tab`)
+    } catch (e) {
+      console.error(`Chord copy failed: ${e.message}`)
+      await browser.toast(page, `Copy failed: ${e.message}`)
+    }
   }
   const close = async () => {
     rmSync(sessionFile(root, cfg), { force: true })
