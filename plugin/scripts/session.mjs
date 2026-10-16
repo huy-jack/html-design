@@ -113,6 +113,7 @@ export async function startSession({ root, cfg, data, headless = false, openPage
     resize: (...a) => browser.resize(...a),
     targetIdOf: (...a) => browser.targetIdOf(...a),
     badge: (...a) => browser.badge(...a),
+    toast: (...a) => browser.toast(...a),
   }
   // Names from the Copy window; the chord reuses them.
   let preset = null

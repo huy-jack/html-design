@@ -38,7 +38,8 @@ const screen = (states) => serializeScreen({ screen: 'x', states: states.map((id
 const post = (port, p, body, headers = {}) => fetch(`http://127.0.0.1:${port}${p}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
 const stubBrowser = (pages, copy = async () => ({ status: 201, saved: 'x', images: 0, warnings: [] })) => {
   const calls = []
-  return { calls, pages, appPages: () => pages, copyFrom: async (p, b) => { calls.push({ p, b }); return copy(p, b) }, resize: async (w) => calls.push({ resize: w }) }
+  return { calls, pages, appPages: () => pages, copyFrom: async (p, b) => { calls.push({ p, b }); return copy(p, b) },
+    resize: async (w, o) => calls.push(o?.front ? { resize: w, front: o.front } : { resize: w }), toast: async (p, text) => calls.push({ toast: text, p }) }
 }
 const page = (title) => ({ title: async () => title })
 const note = { screen: 'x', state: 'a', width: 1440, theme: 'light', path: [1], text: 'a', tag: 'p', note: 'bigger' }
@@ -229,13 +230,55 @@ describe('Copy window in a browser', () => {
     expect(dialogs).toHaveLength(1)
     expect(sent[1]).toEqual({ screen: 'Home Page', state: 'b', delay: 5 })
   }, 30000)
+  it('Copy at 3 widths: Replace? first, each resize brings the app tab to the front, the result shows in the app tab', async () => {
+    const { r, cfg } = project()
+    writeFileSync(join(r, 'design/screens/home-page.html'), screen(['a']))
+    const tab = (t) => ({ title: async () => t, url: () => `http://localhost:3000/${t}`, evaluate: async () => 1440 })
+    const v = await viewer({ root: r, cfg, browser: stubBrowser([tab('one'), tab('two')]) })
+    const { chromium } = await import('playwright')
+    const br = await chromium.launch({ headless: true }); cleanup.push(() => br.close())
+    const pg = await br.newPage()
+    const sent = []
+    let failAt = null
+    for (const p of ['__copy', '__resize', '__toast']) {
+      await pg.route('**/' + p, (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        const body = route.request().postDataJSON()
+        sent.push({ p, ...body })
+        if (p === '__copy' && body.state === failAt && sent.filter((x) => x.p === '__copy').length === 2) return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"Copy failed: boom"}' })
+        return route.fulfill({ status: p === '__copy' ? 201 : 200, contentType: 'application/json', body: '{"saved":"x","images":0,"warnings":[]}' })
+      })
+    }
+    const dialogs = []
+    pg.on('dialog', (d) => { dialogs.push(d.message()); d.accept() })
+    await pg.goto(`${v.url}/__copy`)
+    await pg.waitForFunction(() => !document.getElementById('tabPick').hidden)
+    await pg.selectOption('#tabPick', { index: 1 })
+    await pg.selectOption('#screen', '__new'); await pg.fill('#newScreen', 'Home Page'); await pg.fill('#state', 'a')
+    await pg.click('#copy3')
+    await pg.waitForFunction(() => /^Saved a at/.test(document.getElementById('msg').textContent) && !document.getElementById('copy3').disabled)
+    expect(dialogs).toEqual(['State a already exists. Replace?'])
+    const tabId = sent.find((x) => x.p === '__resize').tab
+    expect(tabId).toMatch(/^t-\d+$/)
+    expect(sent.map((x) => x.p + (x.width ?? ''))).toEqual(['__resize1440', '__copy', '__resize1024', '__copy', '__resize375', '__copy', '__resize1440', '__toast'])
+    for (const x of sent.filter((x) => x.p === '__resize')) expect(x).toMatchObject({ front: true, tab: tabId })
+    for (const x of sent.filter((x) => x.p === '__copy')) expect(x).toMatchObject({ replace: true, tab: tabId })
+    expect(sent.at(-1)).toEqual({ p: '__toast', text: 'Saved a at 1440, 1024, 375', tab: tabId })
+    // A failure stops the run and shows there too.
+    sent.length = 0; failAt = 'b'
+    await pg.fill('#state', 'b')
+    await pg.click('#copy3')
+    await pg.waitForFunction(() => /boom/.test(document.getElementById('msg').textContent))
+    await pg.waitForFunction(() => !document.getElementById('copy3').disabled)
+    expect(sent.at(-1)).toEqual({ p: '__toast', text: 'Not saved at 1024: Copy failed: boom', tab: tabId })
+  }, 30000)
 })
 
 describe('POST guards and copy', () => {
   it('rejects foreign Origin and non-JSON on every POST (S6)', async () => {
     const { r, cfg } = project()
     const v = await viewer({ root: r, cfg })
-    for (const p of ['/__notes', '/__copy', '/__resize']) {
+    for (const p of ['/__notes', '/__copy', '/__resize', '/__toast']) {
       expect((await fetch(`http://127.0.0.1:${v.port}${p}`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{}' })).status).toBe(403)
       expect((await fetch(`http://127.0.0.1:${v.port}${p}`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: 'x' })).status).toBe(415)
     }
@@ -309,6 +352,33 @@ describe('POST guards and copy', () => {
     expect((await post(v.port, '/__resize', { width: 1024 })).status).toBe(200)
     expect(b.calls).toEqual([{ resize: 1024 }])
     expect((await post(v.port, '/__resize', { width: 999 })).status).toBe(400)
+  })
+  it('POST /__resize front: true brings the named app tab (else the only one) to the front; front must be a boolean', async () => {
+    const { r, cfg } = project()
+    const b = stubBrowser([page('Home'), page('Settings')])
+    const v = await viewer({ root: r, cfg, browser: b })
+    expect((await post(v.port, '/__resize', { width: 1024, front: 'yes' })).status).toBe(400)
+    expect((await post(v.port, '/__resize', { width: 1024, front: true, tab: 'bad' })).status).toBe(400)
+    expect((await post(v.port, '/__resize', { width: 1024, front: true, tab: 't-9' })).status).toBe(400)
+    expect(b.calls).toHaveLength(0)
+    expect((await post(v.port, '/__resize', { width: 1024, front: true, tab: 't-2' })).status).toBe(200)
+    expect(await b.calls[0].front.title()).toBe('Settings')
+    b.pages.shift()
+    expect((await post(v.port, '/__resize', { width: 375, front: true })).status).toBe(200)
+    expect(await b.calls[1].front.title()).toBe('Settings')
+    expect((await post(v.port, '/__resize', { width: 1440, front: false })).status).toBe(200)
+    expect(b.calls[2]).toEqual({ resize: 1440 })
+  })
+  it('POST /__toast shows a short text in the named app tab, else in every app tab', async () => {
+    const { r, cfg } = project()
+    const b = stubBrowser([page('Home'), page('Settings')])
+    const v = await viewer({ root: r, cfg, browser: b })
+    for (const text of ['', 'x'.repeat(201), 3]) expect((await post(v.port, '/__toast', { text })).status).toBe(400)
+    expect((await post(v.port, '/__toast', { text: 'Saved a', tab: 't-2' })).status).toBe(200)
+    expect(b.calls).toHaveLength(1)
+    expect(b.calls[0].toast).toBe('Saved a'); expect(await b.calls[0].p.title()).toBe('Settings')
+    expect((await post(v.port, '/__toast', { text: 'Saved b' })).status).toBe(200)
+    expect(b.calls.slice(1).map((c) => c.toast)).toEqual(['Saved b', 'Saved b'])
   })
 })
 

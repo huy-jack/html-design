@@ -115,6 +115,22 @@ describe('browser part', () => {
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1100)
   })
 
+  it('resize with front brings that tab to the front and returns once it is laid out at the width', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const first = b.appPages()[0]; await first.goto(fx.a + '/login')
+    const second = await b.context.newPage(); await second.goto(fx.a + '/menus')
+    // Behind, the tab keeps its old size; in front, it is laid out.
+    await stale(second, 1200)
+    const toFront = second.bringToFront.bind(second)
+    let fronts = 0
+    second.bringToFront = async () => { fronts += 1; await toFront(); await stale(second, null) }
+    await b.resize(1024, { front: second })
+    expect(fronts).toBe(1)
+    expect(await second.evaluate(() => [window.innerWidth, window.outerWidth])).toEqual([1024, 1024])
+  })
+
   it('appPages excludes viewer pages (Review Focus 3)', async () => {
     const fx = await startFixture(); cleanup.push(() => fx.close())
     const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })

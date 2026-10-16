@@ -44,10 +44,12 @@ function validCopy(b) {
   if (typeof b.state !== 'string' || !STATE_ID.test(b.state)) return 'state must be a state id (letters, digits, - _ .)'
   if (b.label != null && (typeof b.label !== 'string' || b.label.length > 200)) return 'label must be at most 200 characters'
   if (b.replace != null && typeof b.replace !== 'boolean') return 'replace must be true or false'
-  if (b.tab != null && !isInt(b.tab, 0, 1000) && !(typeof b.tab === 'string' && /^(t-\d{1,9}|target:[A-Za-z0-9]{1,64})$/.test(b.tab))) return 'tab must be a tab id from the tabs list, target:<CDP target id>, or a tab number'
+  if (!validTab(b.tab)) return TAB_RULE
   if (b.delay != null && !isInt(b.delay, 1, 10)) return 'delay must be whole seconds, 1 to 10'
   return null
 }
+const TAB_RULE = 'tab must be a tab id from the tabs list, target:<CDP target id>, or a tab number'
+const validTab = (t) => t == null || isInt(t, 0, 1000) || (typeof t === 'string' && /^(t-\d{1,9}|target:[A-Za-z0-9]{1,64})$/.test(t))
 
 function readBody(req, limit) {
   return new Promise((ok, fail) => {
@@ -319,20 +321,32 @@ $('copyLater').onclick = function () {
     return send(extra).then(function () { busy(false) })
   })
 }
-// Every width in turn: resize the app tab, let it settle, copy. The base width first; the window ends there.
+// Every width in turn: resize, let it settle, copy. The base width first; the window ends there. Each resize
+// brings the app tab to the front (Chrome lays out only that tab), so the user ends in the app tab: the
+// result shows there too, and Replace? is asked here before the run.
 $('copy3').onclick = function () {
+  var n = names()
+  var tab = chosenTab()
   busy(true)
-  var i = 0
-  var step = function () {
-    if (i === WIDTHS.length) return postJson('/__resize', { width: WIDTHS[0] }).then(function () { busy(false); showTabs(); msg('Saved ' + names().state + ' at ' + WIDTHS.join(', '), 'ok') })
-    var w = WIDTHS[i]
-    msg('Copying at ' + w + ' px…')
-    return postJson('/__resize', { width: w })
-      .then(function () { return new Promise(function (r) { setTimeout(r, 700) }) })
-      .then(function () { return send({}) })
-      .then(function (ok) { if (!ok) { busy(false); return } i += 1; return step() })
-  }
-  step()
+  fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(n.state)).then(function (r) { return r.status === 200 }, function () { return false }).then(function (has) {
+    if (has && !confirm('State ' + n.state + ' already exists. Replace?')) { msg('Not copied.'); busy(false); return }
+    var extra = has ? { replace: true } : {}
+    var done = function (text) { return postJson('/__toast', { text: text, tab: tab }).catch(function () {}).then(function () { busy(false); showTabs() }) }
+    var i = 0
+    var step = function () {
+      if (i === WIDTHS.length) {
+        var saved = 'Saved ' + n.state + ' at ' + WIDTHS.join(', ')
+        return postJson('/__resize', { width: WIDTHS[0], front: true, tab: tab }).then(function () { msg(saved, 'ok'); return done(saved) })
+      }
+      var w = WIDTHS[i]
+      msg('Copying at ' + w + ' px…')
+      return postJson('/__resize', { width: w, front: true, tab: tab })
+        .then(function () { return new Promise(function (r) { setTimeout(r, 700) }) })
+        .then(function () { return send(extra) })
+        .then(function (ok) { if (!ok) return done('Not saved at ' + w + ': ' + $('msg').textContent); i += 1; return step() })
+    }
+    return step()
+  })
 }
 showTabs(); showRecent(); setInterval(showTabs, 2000)
 </script></body></html>`
@@ -377,7 +391,7 @@ export function stateFromText(text, id) {
   return null
 }
 
-// browser: the session's app browser ({ appPages, copyFrom, resize, targetIdOf, badge }), or null when no browser is open.
+// browser: the session's app browser ({ appPages, copyFrom, resize, targetIdOf, badge, toast }), or null when no browser is open.
 export async function createViewServer({ root, cfg, dataDir = null, port = 0, browser = null, watch: doWatch = true, build: buildOpt = true, onPreset = null }) {
   if (dataDir) setDataDir(dataDir)
   const build = buildOpt
@@ -461,6 +475,24 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
   const lastInput = async (p) => {
     try { return Number(await p.evaluate(() => window.__hdLastInput ?? 0)) || 0 } catch { return 0 }
   }
+  // The app tab a request names: { target } (none when tab is not set) or { error }.
+  async function namedTab(pages, tab) {
+    let target
+    if (typeof tab === 'string' && tab.startsWith('target:')) {
+      // A script that drives the browser over the automation port names its tab by CDP target id.
+      const want = tab.slice('target:'.length)
+      for (const p of pages) if (!target && (await browser.targetIdOf(p).catch(() => null)) === want) target = p
+      if (!target) return { error: `Tab ${tab} is not open.` }
+    } else if (typeof tab === 'string') {
+      target = pages.find((p) => tabId(p) === tab)
+      if (!target) return { error: `Tab ${tab} is closed. Copy again to see the open tabs.` }
+    } else if (tab != null) {
+      // A tab number (0 is the first): kept for older callers.
+      target = pages[tab]
+      if (!target) return { error: `There is no tab ${tab}` }
+    }
+    return { target }
+  }
   async function postCopy(req, res) {
     const got = await readJson(req, res)
     if (!got) return
@@ -470,20 +502,8 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     const pages = browser ? browser.appPages() : []
     const noPage = () => json(res, 503, { error: 'No app page is open. Start the session and open the app.' })
     if (!pages.length) return noPage()
-    let target
-    if (typeof b.tab === 'string' && b.tab.startsWith('target:')) {
-      // A script that drives the browser over the automation port names its tab by CDP target id.
-      const want = b.tab.slice('target:'.length)
-      for (const p of pages) if (!target && (await browser.targetIdOf(p).catch(() => null)) === want) target = p
-      if (!target) return json(res, 400, { error: `Tab ${b.tab} is not open.` })
-    } else if (typeof b.tab === 'string') {
-      target = pages.find((p) => tabId(p) === b.tab)
-      if (!target) return json(res, 400, { error: `Tab ${b.tab} is closed. Copy again to see the open tabs.` })
-    } else if (b.tab != null) {
-      // A tab number (0 is the first): kept for older callers.
-      target = pages[b.tab]
-      if (!target) return json(res, 400, { error: `There is no tab ${b.tab}` })
-    }
+    let { target, error } = await namedTab(pages, b.tab)
+    if (error) return json(res, 400, { error })
     const started = Date.now()
     if (b.delay) {
       // Copy in N s: meanwhile the user is in the app tab, opening a menu. A badge counts down there and is
@@ -526,11 +546,39 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
   async function postResize(req, res) {
     const got = await readJson(req, res)
     if (!got) return
-    const w = got.body?.width
+    const b = got.body ?? {}
+    const w = b.width
     if (!cfg.widths.includes(w)) return json(res, 400, { error: `width must be one of ${cfg.widths.join(', ')}` })
+    if (b.front != null && typeof b.front !== 'boolean') return json(res, 400, { error: 'front must be true or false' })
+    if (!validTab(b.tab)) return json(res, 400, { error: TAB_RULE })
     if (!browser) return json(res, 503, { error: 'No app browser is open.' })
-    await browser.resize(w)
+    // front: a copy at this width follows, and Chrome lays out only the tab in front. The tab: the named
+    // one, else the one the user used last, else the first.
+    let front = null
+    if (b.front) {
+      const pages = browser.appPages()
+      const { target, error } = await namedTab(pages, b.tab)
+      if (error) return json(res, 400, { error })
+      const used = await Promise.all(pages.map(async (p) => ({ p, at: await lastInput(p) })))
+      front = target ?? used.sort((x, y) => y.at - x.at)[0]?.p ?? null
+    }
+    await browser.resize(w, front ? { front } : undefined)
     return json(res, 200, { width: w })
+  }
+
+  // A short text in the app tab: where the user is when a run started in the Copy tab ends.
+  async function postToast(req, res) {
+    const got = await readJson(req, res)
+    if (!got) return
+    const b = got.body ?? {}
+    if (typeof b.text !== 'string' || !b.text.trim() || b.text.length > 200) return json(res, 400, { error: 'text must be 1 to 200 characters' })
+    if (!validTab(b.tab)) return json(res, 400, { error: TAB_RULE })
+    if (!browser) return json(res, 503, { error: 'No app browser is open.' })
+    const pages = browser.appPages()
+    const { target, error } = await namedTab(pages, b.tab)
+    if (error) return json(res, 400, { error })
+    await Promise.all((target ? [target] : pages).map((p) => browser.toast?.(p, b.text)))
+    return json(res, 200, { ok: true })
   }
 
   // The Copy window reports its names (screen, state, label) so the keyboard chord can reuse them.
@@ -560,6 +608,7 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
       if (path === '/__copy') return void postCopy(req, res).catch(fail(res))
       if (path === '/__preset') return void postPreset(req, res).catch(fail(res))
       if (path === '/__resize') return void postResize(req, res).catch(fail(res))
+      if (path === '/__toast') return void postToast(req, res).catch(fail(res))
       return res.writeHead(404).end('Not found')
     }
     if (path === '/') {

@@ -151,7 +151,7 @@ After each edit Claude runs `/html-design check`. Undo is your own git.
 - Linked buttons have a pointer. Click one to move to its state with its motion. Motion plays in Chrome 111+, Safari 18+ and Firefox 144+.
 - A red bar shows a CSS build error. The last good CSS stays in use.
 - A link to one state: `screens/<screen>.html#<state>@<width>`.
-- **Copy window**: shows the app tab it will copy (pick one when several are open) and its width. **Copy state**, **Copy in 5 s**, or **Copy at 3 widths** (resizes the browser window and copies each width, so open menus close). **Recent** lists this session's copies with a preview.
+- **Copy window**: shows the app tab it will copy (pick one when several are open) and its width. **Copy state**, **Copy in 5 s**, or **Copy at 3 widths** (resizes the browser window and copies each width, so open menus close; it brings the app tab to the front, and a short note there says what was saved). **Recent** lists this session's copies with a preview.
 - The viewer loads the Geist font from Google Fonts. Offline, it uses the system font.
 
 ## Config: `design-mode.json`
