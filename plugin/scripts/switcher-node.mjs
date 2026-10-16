@@ -5,8 +5,11 @@ import vm from 'node:vm'
 import { darkMarker } from './config.mjs'
 
 export function loadSwitcher(file = join(import.meta.dirname, '..', 'templates', 'switcher.js')) {
+  return loadSwitcherSource(readFileSync(file, 'utf8'))
+}
+export function loadSwitcherSource(src) {
   const ctx = {}
-  vm.runInNewContext(readFileSync(file, 'utf8'), ctx)
+  vm.runInNewContext(src, ctx)
   return ctx.HtmlDesign
 }
 

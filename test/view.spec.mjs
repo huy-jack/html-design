@@ -10,7 +10,7 @@ import { readConfig, writeConfig } from '../plugin/scripts/config.mjs'
 import { readNotes, writeNotes } from '../plugin/scripts/notes.mjs'
 import { serializeScreen } from '../plugin/scripts/screen-file.mjs'
 import { makeSkeleton } from '../plugin/scripts/setup.mjs'
-import { copyWindow, createViewServer, homePage, stateFromText, validNote } from '../plugin/scripts/view.mjs'
+import { copyWindow, createViewServer, homePage, stateFromText, statesFromText, validNote } from '../plugin/scripts/view.mjs'
 import { startFixture } from './fixture/server.mjs'
 import { compareInPage, MATCH_PIXEL_RATIO } from './helpers/pixels.mjs'
 
@@ -180,6 +180,14 @@ describe('redesigned viewer pages', () => {
     expect(stateFromText(t, 'a')).toEqual({ id: 'a', attrs: { id: 'a', 'data-note': 'a > b', 'data-body-class': '[&>svg]:size-4' }, html: '<p>a</p>', variants: [] })
     expect(stateFromText(t, 'b').html).toBe('<p>b</p>')
     expect(stateFromText(t, 'a@375')).toBeNull()
+  })
+  it("stateFromText and statesFromText read a single-quoted value (prettier writes one when the value holds a double quote)", () => {
+    const t = `<template\n  id="greet"\n  data-label='Say "hello" first'\n  data-url="/inbox"\n>\n<p>s</p>\n</template><template id="greet@375" data-variant-of="greet" data-widths="375"><p>small</p></template>`
+    expect(stateFromText(t, 'greet').attrs['data-label']).toBe('Say "hello" first')
+    const all = statesFromText(t)
+    expect(all.map((s) => s.id)).toEqual(['greet'])
+    expect(all[0].attrs['data-url']).toBe('/inbox')
+    expect(all[0].variants).toEqual([{ widths: [375], html: '<p>small</p>' }])
   })
   it('GET /__notes?screen= adds the open notes per state (width copies count for their state)', async () => {
     const { r, cfg } = project()

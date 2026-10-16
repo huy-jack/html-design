@@ -252,3 +252,72 @@ describe('redesigned viewer', () => {
     expect(q(w, 'list').querySelector('[data-sd-state="a"] [data-sd-notedot]')).toBeNull()
   })
 })
+
+// A screen file inside an exported site (export.mjs adds the hd-site mark): served over http, but no view server.
+describe('viewer in an exported site', () => {
+  const SITE =
+    '<!doctype html><html data-screen="x"><head><meta name="hd-site" data-home="../index.html" data-app-url="https://dev.example.com/"></head><body>' +
+    '<template id="a" data-flow="f" data-label="A" data-url="/account"><p>a</p></template>' +
+    '<template id="b" data-flow="f" data-label="B"><p>b</p></template>' +
+    '</body></html>'
+  async function bootSite(page = SITE) {
+    const dom = new JSDOM(page, { url: 'http://bucket.example/screens/x.html#a', runScripts: 'outside-only', pretendToBeVisual: true })
+    const w = dom.window
+    let calls = 0
+    w.fetch = () => { calls += 1; return Promise.reject(new Error('no server')) }
+    w.EventSource = function () { calls += 1 }
+    w.eval(SRC)
+    if (w.document.readyState !== 'complete') await new Promise((r) => w.addEventListener('load', r))
+    await tick(w)
+    await tick(w)
+    return { w, calls: () => calls }
+  }
+
+  it('has no Pick, no notes and calls no server, though the page came over http', async () => {
+    const { w, calls } = await bootSite()
+    expect(q(w, 'pick')).toBeNull()
+    expect(q(w, 'notes')).toBeNull()
+    expect(calls()).toBe(0)
+  })
+
+  it('links home to the site index, not to /', async () => {
+    const { w } = await bootSite()
+    expect(q(w, 'home-bar').getAttribute('href')).toBe('../index.html')
+    expect(w.document.querySelector('.sd-scr a').getAttribute('href')).toBe('../index.html')
+  })
+
+  it('Open on DEV goes to the page the state was copied from, on the app address; hidden for a state without one', async () => {
+    const { w } = await bootSite()
+    const open = q(w, 'open-app')
+    expect(open.getAttribute('href')).toBe('https://dev.example.com/account')
+    expect(open.getAttribute('target')).toBe('_blank')
+    expect(open.hidden).toBe(false)
+    q(w, 'next').click()
+    await tick(w)
+    expect(open.hidden).toBe(true)
+  })
+
+  it('no app address: no Open button', async () => {
+    const { w } = await bootSite(SITE.replace(' data-app-url="https://dev.example.com/"', ''))
+    expect(q(w, 'open-app')).toBeNull()
+  })
+})
+
+describe('proposed states', () => {
+  it('a state marked data-proposed says so above the design and in the state list; others do not', async () => {
+    const page = PAGE.replace('<template id="a" data-flow="f" data-label="A">', '<template id="a" data-flow="f" data-label="A" data-proposed="T-1">')
+    const dom = new JSDOM(page, { url: 'file:///r/design/screens/x.html#a', runScripts: 'outside-only', pretendToBeVisual: true })
+    const w = dom.window
+    w.eval(SRC)
+    if (w.document.readyState !== 'complete') await new Promise((r) => w.addEventListener('load', r))
+    await tick(w)
+    expect(q(w, 'proposed').hidden).toBe(false)
+    expect(q(w, 'proposed').textContent).toBe('Proposed: T-1')
+    expect(q(w, 'proposed').title).toBe('Designed for T-1, not built yet. Skip it in regression.')
+    expect(q(w, 'list').querySelector('[data-sd-state="a"] [data-sd-proposed]').textContent).toBe('Proposed')
+    expect(q(w, 'list').querySelector('[data-sd-state="b"] [data-sd-proposed]')).toBeNull()
+    q(w, 'next').click()
+    await tick(w)
+    expect(q(w, 'proposed').hidden).toBe(true)
+  })
+})

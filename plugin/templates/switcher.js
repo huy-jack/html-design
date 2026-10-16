@@ -16,6 +16,13 @@
     var w = m && m[2] ? Number(m[2]) : WIDTHS[0]
     return { id: m && m[1] ? decodeURIComponent(m[1]) : null, width: WIDTHS.indexOf(w) === -1 ? WIDTHS[0] : w }
   }
+  // data-url is the page a state was copied from: a path, or a full address of the local app. Keep the path.
+  function appPath(url) {
+    if (!url) return ''
+    var m = /^[a-z][a-z0-9+.-]*:\/\/[^/]*(.*)$/i.exec(url)
+    var p = m ? m[1] || '/' : url
+    return p.charAt(0) === '/' ? p : '/' + p
+  }
   // The app may build a different page at a narrower width: use that copy when the state has one.
   function pickHtml(state, width) {
     var html = state.html
@@ -228,6 +235,7 @@
     '.sd-row:hover{background:var(--hover)}.sd-row[aria-current=true]{background:var(--sel);color:var(--sel-ink);font-weight:500;box-shadow:inset 3px 0 0 var(--accent)}' +
     '.sd-row i{font:500 12px ' + MONO + ';font-style:normal;color:var(--dim);min-width:20px;text-align:right}' +
     '.sd-row .sd-lab{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sd-row small{color:var(--dim);font-size:12px;font-weight:400}' +
+    '.sd-prop{flex:none;font-size:12px;font-weight:600;color:var(--warn);border:1px solid currentColor;border-radius:999px;padding:0 8px;line-height:18px}' +
     '.sd-ndot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none}.sd-ncount{color:var(--warn);font-size:12px;font-weight:600;flex:none}' +
     '.sd-empty{padding:16px;color:var(--dim)}' +
     '.sd-foot{border-top:1px solid var(--line);padding:8px 16px;color:var(--dim);font-size:12px;flex:none}.sd-foot:empty{display:none}' +
@@ -244,6 +252,7 @@
     '.sd-bar .sd-seg button[aria-pressed=true],.sd-zoom button[aria-pressed=true]{background:var(--chip);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--chip-edge)}' +
     '.sd-seglab{align-self:center;padding:0 4px 0 8px;color:var(--dim);font-size:12px;font-weight:500}' +
     '.sd-vr{width:1px;height:24px;background:var(--line);flex:none}' +
+    '.sd-bar .sd-open{height:34px;display:inline-flex;align-items:center;padding:0 8px;border-radius:8px;border:1px solid var(--edge);background:var(--raise);color:var(--ink);font-size:13px;font-weight:500;white-space:nowrap;text-decoration:none}.sd-bar .sd-open:hover{background:var(--hover)}' +
     '.sd-bar .sd-plain{border-color:transparent;background:none;padding:0}.sd-count{font:500 12px ' + MONO + ';color:var(--dim);min-width:40px;text-align:center}' +
     '.sd-bar [data-sd=notes].sd-has{color:var(--warn)}.sd-hint{color:var(--warn);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '[data-sd=status]{font-size:12px;color:var(--dim);display:inline-flex;align-items:center;gap:8px;white-space:nowrap}' +
@@ -306,8 +315,12 @@
     var states = Array.prototype.map.call(doc.querySelectorAll('body > template[id]:not([data-variant-of])'), stateOf)
     if (!states.length) return
     var ids = states.map(function (s) { return s.id })
-    // Pick and the note count need the view server; a double-clicked file has none.
-    var served = /^https?:/.test(root.location.protocol)
+    // Pick and the note count need the view server; a double-clicked file has none. Neither has an exported
+    // site: export.mjs marks its screen files with <meta name="hd-site">, and they come over http from any host.
+    var site = doc.querySelector('meta[name="hd-site"]')
+    var served = !site && /^https?:/.test(root.location.protocol)
+    var homeHref = served ? '/' : site ? site.getAttribute('data-home') || '../index.html' : null
+    var appUrl = site ? (site.getAttribute('data-app-url') || '').replace(/\/+$/, '') : ''
     // Theme and Pick survive the reload that follows each design change (per tab, best effort).
     var saved = {}
     try { saved = JSON.parse(root.sessionStorage.getItem('sd-view') || '{}') || {} } catch (e) {}
@@ -381,9 +394,9 @@
     // Side: the screen, a filter, every state by group.
     var side = el('aside', 'sd-side')
     var head = el('div', 'sd-scr')
-    if (served) {
+    if (homeHref) {
       var home = el('a', '', ICON.back)
-      home.href = '/'
+      home.href = homeHref
       home.title = 'All screens'
       home.setAttribute('aria-label', 'All screens')
       head.appendChild(home)
@@ -481,9 +494,9 @@
     var handled = false
     var parts = [hideBtn, title, status, linkWarn, statePick, seg, designSeg]
     // Below 900 px the side list (and its link home) is gone: the bar has the way back.
-    if (served) {
+    if (homeHref) {
       var homeBar = el('a', 'sd-homebar', ICON.back)
-      homeBar.href = '/'
+      homeBar.href = homeHref
       homeBar.title = 'All screens'
       homeBar.setAttribute('aria-label', 'All screens')
       homeBar.setAttribute('data-sd', 'home-bar')
@@ -491,6 +504,14 @@
     }
     if (served) parts = parts.concat([el('span', 'sd-vr'), pickBtn, notesBtn])
     parts = parts.concat([el('span', 'sd-vr sd-vrnav'), prevBtn, count, nextBtn])
+    // An exported site with an app address: the page this state was copied from, in the app (look only).
+    var openApp = null
+    if (appUrl) {
+      openApp = tagged('a', 'sd-open', 'open-app', 'Open in app')
+      openApp.target = '_blank'
+      openApp.rel = 'noopener'
+      parts.push(openApp)
+    }
     bar.append.apply(bar, parts)
     var stage = el('div', 'sd-stage')
     // Above the frame, never over it: a stopped session, a failed build, Pick on.
@@ -516,7 +537,10 @@
     })
     var capCount = tagged('span', '', 'cap-count')
     var capNote = tagged('span', '', 'cap-note')
-    capLeft.append(size, zoomSeg, capCount, capNote)
+    // data-proposed="<ticket>": designed, not built yet. Reviewers must see it before they compare with the app.
+    var proposed = tagged('span', 'sd-prop', 'proposed')
+    proposed.hidden = true
+    capLeft.append(size, zoomSeg, capCount, proposed, capNote)
     var source = el('span')
     source.setAttribute('data-sd', 'source')
     cap.append(capLeft, source)
@@ -572,6 +596,13 @@
         label.textContent = text
         row.title = s.id
         row.append(n, label)
+        if (s.attrs['data-proposed']) {
+          var prop = el('span', 'sd-prop')
+          prop.textContent = 'Proposed'
+          prop.setAttribute('data-sd-proposed', '')
+          row.title = s.id + ': proposed for ' + s.attrs['data-proposed']
+          row.appendChild(prop)
+        }
         if (notesBy[s.id]) {
           var dot = el('span', 'sd-ndot')
           dot.setAttribute('data-sd-notedot', '')
@@ -738,6 +769,18 @@
       nextBtn.disabled = stepState(ids, s.id, 1) === null
       count.textContent = ids.indexOf(s.id) + 1 + '/' + ids.length
       source.textContent = s.attrs['data-url'] ? 'Copied from ' + s.attrs['data-url'] : ''
+      var ticket = s.attrs['data-proposed'] || ''
+      proposed.hidden = !ticket
+      proposed.textContent = ticket ? 'Proposed: ' + ticket : ''
+      proposed.title = ticket ? 'Designed for ' + ticket + ', not built yet. Skip it in regression.' : ''
+      if (openApp) {
+        var path = appPath(s.attrs['data-url'])
+        openApp.hidden = !path
+        if (path) {
+          openApp.href = appUrl + path
+          openApp.title = 'Opens ' + appUrl + path + '. Some states need clicks in the app to reach.'
+        }
+      }
       Array.prototype.forEach.call(list.querySelectorAll('[data-sd-state]'), function (r) {
         if (r.getAttribute('data-sd-state') === s.id) {
           r.setAttribute('aria-current', 'true')
