@@ -602,6 +602,24 @@ describe('copy through the real browser', () => {
     }
   }, 60000)
 
+  it('a fixed layer in the right half keeps its distance to the right edge when a 1470 window is stored at 1440', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const { r, cfg } = project({ url: fx.a + '/login' })
+    const b = await openBrowser({ root: r, cfg, dataDir: dataDir(), profileDir: mkdtempSync(join(tmpdir(), 'prof-')), headless: true }); cleanup.push(() => b.close())
+    const v = await viewer({ root: r, cfg, browser: b })
+    const app = b.appPages()[0]
+    await app.setViewportSize({ width: 1470, height: 900 })
+    await app.goto(fx.a + '/login'); await app.goto(fx.a + '/floating-left')
+    expect((await post(v.port, '/__copy', { screen: 'Floating', state: 'left' })).status).toBe(201)
+    const view = await b.context.newPage()
+    await view.setViewportSize({ width: 1440, height: 900 })
+    await view.goto(`http://127.0.0.1:${v.port}/__state/floating/left`)
+    const got = await view.evaluate(() => { const r = document.getElementById('left-menu').getBoundingClientRect(); return { gap: innerWidth - r.right, width: r.width, top: r.top } })
+    expect(Math.abs(got.gap - 40)).toBeLessThanOrEqual(1)
+    expect(got.width).toBe(200)
+    expect(got.top).toBe(100)
+  }, 60000)
+
   it('POST /__copy with delay waits, counts down in the app tabs, then copies the tab in view', async () => {
     const fx = await startFixture(); cleanup.push(() => fx.close())
     const { r, cfg } = project({ url: fx.a + '/login' })

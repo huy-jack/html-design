@@ -52,6 +52,10 @@ document.getElementById('hover-target').onmouseleave = function () { drop('hover
 <div id="fixed-menu" style="position:fixed;right:40px;bottom:0;height:200px;width:180px;margin:10px 0;background:rgb(10,20,30)">menu</div>
 <div id="popper" style="position:fixed;top:0;left:0;width:120px;height:60px;transform:translate(300px,120px);background:rgb(30,20,10)">pop</div>
 </body></html>`
+  // A menu placed by script with left = window width - 240: 40 px from the right edge at any window width.
+  const floatingLeft = `<!doctype html><html lang="en"><head></head><body style="margin:0"><main style="height:400px">Page</main>
+<div id="left-menu" style="position:fixed;top:100px;width:200px;height:150px;background:rgb(10,20,30)">menu</div>
+<script>document.getElementById('left-menu').style.left = (innerWidth - 240) + 'px'</script></body></html>`
   const a = createServer((req, res) => {
     const authed = /(?:^|;\s*)sid=1/.test(req.headers.cookie ?? '')
     const send = (type, body) => { res.writeHead(200, { 'content-type': type }); res.end(body) }
@@ -61,6 +65,7 @@ document.getElementById('hover-target').onmouseleave = function () { drop('hover
     if (req.url === '/page') return send('text/html', page)
     if (req.url === '/menus') return send('text/html', menus)
     if (req.url === '/floating') return send('text/html', floating)
+    if (req.url === '/floating-left') return send('text/html', floatingLeft)
     if (req.url === '/app.css') return send('text/css', appCss)
     if (req.url === '/img.png') return send('image/png', PNG)
     if (req.url === '/font.woff2') return send('font/woff2', FONT)
