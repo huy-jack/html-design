@@ -437,6 +437,25 @@ describe('copy through the real browser', () => {
     expect(await badge(back)).toBeNull()
   }, 60000)
 
+  it('POST /__copy with delay copies the app tab the user last used, among 2 tabs that both report visible and focused', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const { r, cfg } = project({ url: fx.a + '/login' })
+    const b = await openBrowser({ root: r, cfg, dataDir: dataDir(), profileDir: mkdtempSync(join(tmpdir(), 'prof-')), headless: true }); cleanup.push(() => b.close())
+    const v = await viewer({ root: r, cfg, browser: b })
+    const first = b.appPages()[0]; await first.goto(fx.a + '/login'); await first.goto(fx.a + '/menus')
+    const second = await b.context.newPage(); await second.goto(fx.a + '/menus')
+    await second.evaluate(() => document.querySelector('main').insertAdjacentHTML('beforeend', '<p>second-marker</p>'))
+    // Input in the first tab before the wait does not count.
+    await first.hover('#open-click')
+    const res = post(v.port, '/__copy', { screen: 'Menus', state: 'later', delay: 2 })
+    await new Promise((ok) => setTimeout(ok, 700))
+    await second.click('#open-click')
+    expect((await res).status).toBe(201)
+    const html = stateFromText(readFileSync(join(r, 'design/screens/menus.html'), 'utf8'), 'later').html
+    expect(html).toContain('second-marker')
+    expect(html).toContain('id="click-menu"')
+  }, 60000)
+
   it('fixture copy matches the app within 0.1% pixels (S2)', async () => {
     const fx = await startFixture(); cleanup.push(() => fx.close())
     const { r, cfg } = project({ url: fx.a + '/login', widths: [1440] })

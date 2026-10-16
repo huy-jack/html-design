@@ -11,10 +11,12 @@ import { adapterFor } from './styles/index.mjs'
 
 const CLEAN_SRC = readFileSync(join(import.meta.dirname, 'clean.mjs'), 'utf8').replace(/^export\s+/m, '')
 
-// Ctrl+Shift+S on any app page asks the session to copy that page.
+// Ctrl+Shift+S on any app page asks the session to copy that page. __hdLastInput: when the user last used
+// this tab. A headful Playwright browser reports every tab visible and focused, so this names the tab in use.
 const CHORD_SCRIPT = `window.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) { e.preventDefault(); window.__hdCopy && window.__hdCopy() }
-}, true)`
+}, true)
+for (const t of ['pointerdown', 'keydown', 'pointerover']) window.addEventListener(t, () => { window.__hdLastInput = Date.now() }, true)`
 
 const nearest = (widths, w) => widths.reduce((best, x) => (Math.abs(x - w) < Math.abs(best - w) ? x : best), widths[0])
 

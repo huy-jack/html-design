@@ -101,7 +101,7 @@ Rules:
 - The same state at the same width asks "Replace?".
 - The same state at another width (use the width buttons) is stored as a width copy, but only if the page differs.
 - With 2 or more app tabs open, the Copy window asks which tab.
-- To copy an open menu: press **Ctrl+Shift+S** in the app tab, or click **Copy in 5 s**, go to the app tab and open the menu. The copy is of the app tab you are looking at when the time is up. A small "Copy in 3" badge counts down in the app tab; it is never in the copy. After Ctrl+Shift+S, a short note in the app tab says whether the copy was saved.
+- To copy an open menu: press **Ctrl+Shift+S** in the app tab, or click **Copy in 5 s**, go to the app tab and open the menu. The copy is of the app tab you last clicked, typed or moved the pointer in during the wait. A small "Copy in 3" badge counts down in the app tab; it is never in the copy. After Ctrl+Shift+S, a short note in the app tab says whether the copy was saved.
 
 You can also ask Claude: "copy this as checkout empty".
 

@@ -457,6 +457,10 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
   const looking = async (p) => {
     try { return await p.evaluate(() => document.visibilityState === 'visible' && document.hasFocus()) } catch { return false }
   }
+  // When the user last clicked, typed or moved the pointer in the tab (the init script records it); 0 if never.
+  const lastInput = async (p) => {
+    try { return Number(await p.evaluate(() => window.__hdLastInput ?? 0)) || 0 } catch { return 0 }
+  }
   async function postCopy(req, res) {
     const got = await readJson(req, res)
     if (!got) return
@@ -480,9 +484,10 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
       target = pages[b.tab]
       if (!target) return json(res, 400, { error: `There is no tab ${b.tab}` })
     }
+    const started = Date.now()
     if (b.delay) {
       // Copy in N s: meanwhile the user is in the app tab, opening a menu. A badge counts down there and is
-      // gone before the copy settles. The tab is picked when the wait ends: the one the user looks at.
+      // gone before the copy settles. The tab is picked when the wait ends: the one the user used last.
       const badge = (ps, text) => Promise.all(ps.map((p) => browser.badge?.(p, text)))
       for (let n = b.delay; n > 0; n--) {
         await badge(target ? [target] : browser.appPages(), `Copy in ${n}`)
@@ -494,8 +499,11 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     if (!target) {
       const now = browser.appPages()
       if (!now.length) return noPage()
-      const inView = b.delay ? (await Promise.all(now.map(async (p) => ((await looking(p)) ? p : null)))).filter(Boolean) : []
-      if (inView.length === 1) target = inView[0]
+      // Input during the wait names the tab; else the tab in view; else the only tab.
+      const used = b.delay ? (await Promise.all(now.map(async (p) => ({ p, at: await lastInput(p) })))).filter((x) => x.at > started).sort((x, y) => y.at - x.at) : []
+      const inView = b.delay && !used.length ? (await Promise.all(now.map(async (p) => ((await looking(p)) ? p : null)))).filter(Boolean) : []
+      if (used.length) target = used[0].p
+      else if (inView.length === 1) target = inView[0]
       else if (now.length === 1) target = now[0]
       else return json(res, 409, { tabs: await Promise.all(now.map(async (p) => ({ id: tabId(p), title: await p.title().catch(() => '') }))) })
     }
