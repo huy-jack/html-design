@@ -30,6 +30,21 @@ export async function startFixture() {
 </head><body class="bg-white"><main class="p-4 text-brand lib cross"><img src="/img.png" alt="">
 <button onclick="document.getElementById('menu').classList.toggle('hidden')">Open menu</button>
 <ul id="menu" class="hidden"><li>One</li></ul></main></body></html>`
+  // Menus the way app libraries build them: in the DOM only while open. The click menu closes on window
+  // resize and blur; the hover menu lives while the pointer is over its target.
+  const menus = `<!doctype html><html lang="en"><head><link rel="stylesheet" href="/app.css"></head>
+<body class="bg-white"><main class="p-4"><button id="open-click">Open click menu</button>
+<div id="hover-target" style="display:inline-block;padding:20px">Hover me</div></main>
+<script>
+var main = document.querySelector('main')
+function show(id) { if (!document.getElementById(id)) main.insertAdjacentHTML('beforeend', '<ul id="' + id + '"><li>' + id + ' item</li></ul>') }
+function drop(id) { var m = document.getElementById(id); if (m) m.remove() }
+document.getElementById('open-click').onclick = function () { show('click-menu') }
+addEventListener('resize', function () { drop('click-menu') })
+addEventListener('blur', function () { drop('click-menu') })
+document.getElementById('hover-target').onmouseenter = function () { show('hover-menu') }
+document.getElementById('hover-target').onmouseleave = function () { drop('hover-menu') }
+</script></body></html>`
   const a = createServer((req, res) => {
     const authed = /(?:^|;\s*)sid=1/.test(req.headers.cookie ?? '')
     const send = (type, body) => { res.writeHead(200, { 'content-type': type }); res.end(body) }
@@ -37,6 +52,7 @@ export async function startFixture() {
     if (req.url === '/lib.css') return send('text/css', '.lib{--tw-x:1;color:rgb(1,2,3)}')
     if (!authed) { res.writeHead(401); return res.end('login first') }
     if (req.url === '/page') return send('text/html', page)
+    if (req.url === '/menus') return send('text/html', menus)
     if (req.url === '/app.css') return send('text/css', appCss)
     if (req.url === '/img.png') return send('image/png', PNG)
     if (req.url === '/font.woff2') return send('font/woff2', FONT)

@@ -44,17 +44,47 @@ describe('browser part', () => {
     expect(readFileSync(join(r, 'design/fonts.css'), 'utf8')).toContain('base64,')
   })
 
-  it('first copy resizes to the largest width (Review Focus 5)', async () => {
+  it('a first copy keeps the window size and is stored at the nearest set width, with a warning', async () => {
     const fx = await startFixture(); cleanup.push(() => fx.close())
     const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
     const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
     const page = b.appPages()[0]; await page.goto(fx.a + '/login')
-    await page.setViewportSize({ width: 375, height: 900 })
+    await page.setViewportSize({ width: 1000, height: 900 })
     const out = await b.copyFrom(page, { screen: 'Fixture', state: 'closed' })
     expect(out.status).toBe(201)
-    expect(readFileSync(join(r, 'design/screens/fixture.html'), 'utf8')).toMatch(/id="closed"[^>]*data-width="1440"|data-width="1440"[^>]*id="closed"/)
-    expect(await page.evaluate(() => window.innerWidth)).toBe(1440)
-    expect(await page.evaluate(() => window.innerHeight)).toBe(900)
+    expect(out.warnings).toContain('window is 1000px wide; stored as 1024px')
+    expect(readFileSync(join(r, 'design/screens/fixture.html'), 'utf8')).toMatch(/id="closed"[^>]*data-width="1024"|data-width="1024"[^>]*id="closed"/)
+    expect(await page.evaluate(() => [window.innerWidth, window.innerHeight])).toEqual([1000, 900])
+  })
+
+  it('copying a new state keeps an open click menu and never changes the page size', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const page = b.appPages()[0]; await page.goto(fx.a + '/login'); await page.goto(fx.a + '/menus')
+    await page.click('#open-click')
+    const size = () => page.evaluate(() => [window.innerWidth, window.outerWidth, window.innerHeight])
+    const before = await size()
+    const out = await b.copyFrom(page, { screen: 'Menus', state: 'open' })
+    expect(out.status).toBe(201)
+    expect(readFileSync(join(r, 'design/screens/menus.html'), 'utf8')).toContain('id="click-menu"')
+    expect(await size()).toEqual(before)
+    // No emulated size: the page is as wide as the window.
+    expect(before[0]).toBe(before[1])
+  })
+
+  it('resize sets the real window width and leaves no emulated size behind', async () => {
+    const fx = await startFixture(); cleanup.push(() => fx.close())
+    const r = tempProject({ url: fx.a + '/login', css: 'app.css', themeVars: ['--color-brand'] })
+    const b = await openBrowser({ root: r, cfg: readConfig(r), dataDir: dataDir(), profileDir: profile(), headless: true }); cleanup.push(() => b.close())
+    const first = b.appPages()[0]; await first.goto(fx.a + '/login')
+    const second = await b.context.newPage(); await second.goto(fx.a + '/menus')
+    const widths = (p) => p.evaluate(() => [window.innerWidth, window.outerWidth])
+    for (const w of [1024, 375, 1440]) {
+      await b.resize(w)
+      expect(await widths(first)).toEqual([w, w])
+      expect(await widths(second)).toEqual([w, w])
+    }
   })
 
   it('appPages excludes viewer pages (Review Focus 3)', async () => {

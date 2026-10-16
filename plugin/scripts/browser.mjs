@@ -6,7 +6,6 @@ import { processCapture } from './capture-core.mjs'
 import { darkMarker } from './config.mjs'
 import { cssUrls, splitFontFaces } from './css-sort.mjs'
 import { dataPaths, loadDep } from './deps.mjs'
-import { parseScreen, slugScreen } from './screen-file.mjs'
 import { freezePage, settlePage } from './settle.mjs'
 import { adapterFor } from './styles/index.mjs'
 
@@ -65,14 +64,10 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
 
   const viewWidth = (page) => page.evaluate(() => [window.innerWidth, window.innerHeight])
 
+  // Copies at the page's current size. A resize here would close the app's open menus (many close on window
+  // resize) and leave the page drawn wider than its window.
   async function copyFrom(page, { screen, state, label, replace = false }) {
-    const file = join(root, cfg.dir, 'screens', `${slugScreen(screen)}.html`)
-    const known = existsSync(file) && parseScreen(readFileSync(file, 'utf8')).states.some((s) => s.id === state)
     let clean_warn = null
-    if (!known) {
-      const [, h] = await viewWidth(page)
-      await page.setViewportSize({ width: cfg.widths[0], height: h })
-    }
     await settlePage(page)
     await freezePage(page)
     const [w] = await viewWidth(page)
@@ -110,10 +105,35 @@ export async function openBrowser({ root, cfg, dataDir = null, profileDir, onCho
     return processCapture({ root, cfg: { ...cfg, url: pageUrl }, screen, state, label, width, replace, clean, sheetTexts, files })
   }
 
+  // One CDP session per app page, kept open: an emulated size lasts only while the session that set it is
+  // attached, and only that session can clear it.
+  const sessions = new WeakMap()
+  const cdpOf = async (p) => {
+    if (!sessions.has(p)) sessions.set(p, await context.newCDPSession(p))
+    return sessions.get(p)
+  }
+  // Resizes the real window (all app tabs share it), so the page follows the window as before. A width the
+  // window cannot reach (its minimum is about 500 px on macOS) falls back to an emulated page size.
   async function resize(width) {
+    const windows = new Set()
     for (const p of appPages()) {
+      const s = await cdpOf(p)
+      await s.send('Emulation.clearDeviceMetricsOverride')
+      try {
+        const { windowId } = await s.send('Browser.getWindowForTarget')
+        if (windows.has(windowId)) continue
+        windows.add(windowId)
+        const [inner, outer] = await p.evaluate(() => [window.innerWidth, window.outerWidth])
+        await s.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } })
+        await s.send('Browser.setWindowBounds', { windowId, bounds: { width: width + outer - inner } })
+      } catch (e) { console.error(`Window resize failed: ${e.message}`) }
+    }
+    for (const p of appPages()) {
+      let w = 0
+      for (let i = 0; i < 20 && (w = (await viewWidth(p))[0]) !== width; i++) await new Promise((r) => setTimeout(r, 50))
+      if (w === width) continue
       const [, h] = await viewWidth(p)
-      await p.setViewportSize({ width, height: h })
+      await (await cdpOf(p)).send('Emulation.setDeviceMetricsOverride', { width, height: h, deviceScaleFactor: 0, mobile: false })
     }
   }
 
