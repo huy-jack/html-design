@@ -32,7 +32,7 @@ describe('session', () => {
     const st = ses(r, d, 'start', '--headless')
     expect(st.status).toBe(0)
     const { port, pid } = JSON.parse(readFileSync(join(r, 'design/.local/session.json'), 'utf8'))
-    expect(st.stdout).toContain(`Viewer http://127.0.0.1:${port}/  Copy window http://127.0.0.1:${port}/__copy`)
+    expect(st.stdout).toContain(`Viewer http://127.0.0.1:${port}/  Copy tab http://127.0.0.1:${port}/__copy\nNext: open your app in a new tab of that browser window, then use the Copy tab.\n`)
     expect((await fetch(`http://127.0.0.1:${port}/`)).status).toBe(200)
     expect(ses(r, d, 'start', '--headless').stdout).toContain(`127.0.0.1:${port}/`)
     const s = ses(r, d, 'status')
@@ -89,11 +89,14 @@ describe('session', () => {
 
   it('without ps, the session check falls back to a live pid whose port serves the viewer page', async () => {
     const serve = (body) => new Promise((ok) => { const srv = createServer((q, res) => res.end(body)).listen(0, '127.0.0.1', () => ok(srv)) })
-    const viewer = await serve('<!doctype html><html><head><title>Designs</title></head><body></body></html>')
+    const viewer = await serve('<!doctype html><html><head><title>Screens</title></head><body></body></html>')
+    // A session started by an older plugin version titles its home page Designs.
+    const older = await serve('<!doctype html><html><head><title>Designs</title></head><body></body></html>')
     const other = await serve('<html><title>Other app</title></html>')
-    stops.push(() => new Promise((ok) => viewer.close(ok)), () => new Promise((ok) => other.close(ok)))
+    stops.push(() => new Promise((ok) => viewer.close(ok)), () => new Promise((ok) => older.close(ok)), () => new Promise((ok) => other.close(ok)))
     const noPs = () => null
     expect(await isOurSession({ pid: process.pid, port: viewer.address().port }, { ps: noPs })).toBe(true)
+    expect(await isOurSession({ pid: process.pid, port: older.address().port }, { ps: noPs })).toBe(true)
     expect(await isOurSession({ pid: process.pid, port: other.address().port }, { ps: noPs })).toBe(false)
     expect(await isOurSession({ pid: process.pid, port: 1 }, { ps: noPs })).toBe(false)
     // With ps, its answer decides and the port is not asked.

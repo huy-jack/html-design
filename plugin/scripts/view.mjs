@@ -1,6 +1,6 @@
 // usage: node view.mjs [--port 8900] [--data <dir>]  (run in the project root)
 // Local server for the design folder: rebuilds the CSS on start and when screens or the Tailwind source change,
-// then tells open pages to reload. Serves the Copy window and the copy endpoints. 127.0.0.1 only.
+// then tells open pages to reload. Serves the Copy tab and the copy endpoints. 127.0.0.1 only.
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync, watch } from 'node:fs'
 import { createServer } from 'node:http'
 import { basename, extname, join, resolve, sep } from 'node:path'
@@ -10,7 +10,7 @@ import { projectRoot, readConfig } from './config.mjs'
 import { readNotes, writeNotes } from './notes.mjs'
 import { isMain } from './deps.mjs'
 import { setDataDir } from './runtime.mjs'
-import { parseScreen, slugScreen } from './screen-file.mjs'
+import { parseScreen, slugScreen, slugState } from './screen-file.mjs'
 import { loadSwitcher } from './switcher-node.mjs'
 import { adapterFor } from './styles/index.mjs'
 
@@ -48,6 +48,9 @@ function validCopy(b) {
   if (b.delay != null && !isInt(b.delay, 1, 10)) return 'delay must be whole seconds, 1 to 10'
   return null
 }
+const NO_SESSION = 'The session is not running. In Claude Code, type /html-design start.'
+const NO_APP_TAB = "Your app is not open yet. Open a new tab in this browser window (Ctrl+T or Cmd+T) and go to your app's address."
+const FOCUS_PATH = /^\/(?:__copy|screens\/[a-z0-9-]{1,80}\.html(?:#[\w.%@-]{0,300})?)?$/
 const TAB_RULE = 'tab must be a tab id from the tabs list, target:<CDP target id>, or a tab number'
 const validTab = (t) => t == null || isInt(t, 0, 1000) || (typeof t === 'string' && /^(t-\d{1,9}|target:[A-Za-z0-9]{1,64})$/.test(t))
 
@@ -66,83 +69,139 @@ function readBody(req, limit) {
   })
 }
 
-// Shared look of the plugin's own pages (home, Copy window). The switcher in each screen file carries the same tokens.
+// Shared look of the plugin's own pages (home, Copy tab). The switcher in each screen file carries the same tokens.
+// Light by default, dark when the computer asks for it; data-ui on <html> is the user's own choice (key hd-ui).
+// Accent only for the main action, the selected item, links and focus; never inside the design.
 const FONT_LINK = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">'
-const CHROME_CSS = `:root{--bg:#0c0c0d;--chrome:#121214;--raise:#18181b;--hover:#1f1f23;--line:#232327;--line2:#2e2e33;--ink:#ececee;--dim:#a1a1a8;--mute:#6b6b73;--accent:#4c8dff;--ok:#3ecf8e;--warn:#f5b84b;--bad:#ff6b6b;color-scheme:dark}
-*{box-sizing:border-box;margin:0}body{font:13px/1.45 Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
-a{color:inherit;text-decoration:none}svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
-.kbd{font:500 10.5px "Geist Mono",ui-monospace,monospace;color:var(--mute);border:1px solid var(--line2);border-radius:4px;padding:1px 4px;line-height:1.3}
-.ib{height:30px;min-width:30px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 10px;border-radius:7px;color:var(--ink);border:1px solid var(--line2);background:var(--raise);font:inherit;cursor:pointer}
-.ib:hover{background:var(--hover)}.ib:disabled{opacity:.45;cursor:default}
-.ib.p{background:var(--ink);color:#0c0c0d;border-color:var(--ink);font-weight:500}.ib.p:hover{background:#fff}
-.seg{display:inline-flex;padding:2px;background:var(--bg);border:1px solid var(--line);border-radius:8px;gap:2px}
-.seg>button{height:26px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:6px;color:var(--mute);font:inherit;font-size:12.5px;background:none;border:0;cursor:pointer}
-.seg>button:hover{color:var(--ink)}.seg>button[aria-pressed=true]{background:var(--hover);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(62,207,142,.14);flex:none}.dot.off{background:var(--mute);box-shadow:none}
-.field{height:34px;width:100%;padding:0 11px;border:1px solid var(--line2);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;outline:none}
-.field:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(76,141,255,.18)}.field::placeholder{color:var(--mute)}
-select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b73' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}`
+const LIGHT = '--bg:#ffffff;--chrome:#f6f7f9;--raise:#ffffff;--hover:#eceef2;--line:#e4e4e7;--edge:#8e8e98;--ink:#18181b;--dim:#52525b;--mute:#63636b;--accent:#2563eb;--accent-h:#1d4ed8;--accent-p:#1e40af;--link:#2563eb;--sel:#eff4ff;--sel-ink:#1e40af;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--ok-bg:#f0fdf4;--warn-bg:#fffbeb;--warn-edge:#d97706;--bad-bg:#fef2f2;--chip:#ffffff;--chip-edge:#8e8e98;--off:#e4e4e7;--off-ink:#63636b;color-scheme:light'
+const DARK = '--bg:#111113;--chrome:#18181b;--raise:#1f1f23;--hover:#2a2a2e;--line:#2a2a2e;--edge:#71717a;--ink:#f4f4f5;--dim:#a1a1aa;--mute:#8b8b94;--link:#7aa7ff;--sel:#1c2a4a;--sel-ink:#f4f4f5;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--ok-bg:#12261a;--warn-bg:#2b2210;--warn-edge:#a16207;--bad-bg:#2c1515;--chip:#2a2a2e;--chip-edge:#71717a;--off:#2a2a2e;--off-ink:#a1a1aa;color-scheme:dark'
+const CHROME_CSS = `:root{${LIGHT}}@media (prefers-color-scheme:dark){:root:not([data-ui=light]){${DARK}}}:root[data-ui=dark]{${DARK}}
+*{box-sizing:border-box;margin:0}body{font:14px/1.5 Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}:focus-visible{outline:2px solid var(--accent);outline-offset:2px}[hidden]{display:none !important}
+svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}.sp{flex:1}
+.kbd{font:500 12px/1.4 "Geist Mono",ui-monospace,monospace;color:var(--dim);border:1px solid var(--edge);border-radius:4px;padding:0 4px}
+.btn{height:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;border-radius:8px;color:var(--ink);border:1px solid var(--edge);background:var(--raise);font:inherit;font-weight:500;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--hover);text-decoration:none}.btn:disabled{opacity:.5;cursor:not-allowed}.btn[aria-busy=true]:disabled{opacity:1;cursor:progress}.btn.icon{width:36px;padding:0}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.primary:hover{background:var(--accent-h);border-color:var(--accent-h)}.btn.primary:active{background:var(--accent-p)}
+.btn.primary:disabled{background:var(--off);border-color:var(--off);color:var(--off-ink);opacity:1}.btn.primary[aria-busy=true]:disabled{background:var(--accent);border-color:var(--accent);color:#fff}
+.seg{display:inline-flex;padding:3px;background:var(--chrome);border:1px solid var(--edge);border-radius:8px;gap:2px}
+.seg>button{height:28px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-radius:6px;color:var(--dim);font:inherit;font-size:13px;font-weight:500;background:none;border:0;cursor:pointer}
+.seg>button:hover{color:var(--ink);background:var(--hover)}.seg>button[aria-pressed=true]{background:var(--chip);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--chip-edge)}
+.pill{display:inline-flex;align-items:center;gap:8px;min-width:0;color:var(--dim);font-size:13px;padding:0 12px;height:32px;border:1px solid var(--line);border-radius:999px;background:var(--raise);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}.dot.off{background:var(--mute)}
+.field{height:38px;width:100%;padding:0 12px;border:1px solid var(--edge);border-radius:8px;background:var(--raise);color:var(--ink);font:inherit;outline:none}
+.field:focus{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}.field::placeholder{color:var(--mute)}.field[aria-invalid=true]{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
+select.field{appearance:none;padding-right:32px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238e8e98' stroke-width='2.4'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.spin{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite;flex:none}@keyframes spin{to{transform:rotate(360deg)}}
+.top{height:56px;border-bottom:1px solid var(--line);background:var(--chrome);display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:2}
+.mark{width:20px;height:20px;border-radius:6px;background:var(--ink);position:relative;flex:none}.mark:after{content:"";position:absolute;inset:5px 5px 9px;border:1.6px solid var(--chrome);border-radius:2px}`
 const ICONS = {
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
   globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+  alert: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>',
+  back: '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>',
+  sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  moon: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>',
 }
 const STYLE_NAMES = { tw4: 'Tailwind 4', tw3: 'Tailwind 3', css: 'CSS' }
 // "5 min ago": the page fills <time data-mtime> in the viewer's own clock.
 const AGO_JS = `function ago(t){var s=(Date.now()-t)/1000;if(s<60)return 'just now';if(s<3600)return Math.floor(s/60)+' min ago';if(s<86400)return Math.floor(s/3600)+' h ago';if(s<172800)return 'yesterday';return new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'})}`
+// In <head>: the saved tool theme before the first paint.
+const UI_HEAD_JS = `<script>try{var t=localStorage.getItem('hd-ui');if(t)document.documentElement.setAttribute('data-ui',t)}catch(e){}</script>`
+// The tool theme button (#uiTheme), and links between the plugin's tabs. In the session browser (it has the
+// chord binding) a data-focus link switches to the open tab through the server; else it is a plain link.
+const PAGE_JS = `function uiDark(){var t=document.documentElement.getAttribute('data-ui');return t?t==='dark':!!(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)}
+function uiShow(){var b=document.getElementById('uiTheme');if(!b)return;var d=uiDark();b.innerHTML=d?${JSON.stringify(ICONS.sun)}:${JSON.stringify(ICONS.moon)};b.title='Tool colors (not your design)';b.setAttribute('aria-label',b.title)}
+uiShow()
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('#uiTheme')
+  if(b){var t=uiDark()?'light':'dark';document.documentElement.setAttribute('data-ui',t);try{localStorage.setItem('hd-ui',t)}catch(x){}uiShow();return}
+  var a=e.target.closest&&e.target.closest('a[data-focus]')
+  if(!a||!window.__hdCopy||e.metaKey||e.ctrlKey||e.shiftKey||e.button)return
+  e.preventDefault()
+  fetch('/__focus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:a.getAttribute('data-focus')})}).then(function(r){if(!r.ok)throw new Error('no')}).catch(function(){location.href=a.href})
+})`
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+const exampleAddress = (url) => (url ? String(url).replace(/^https?:\/\//, '').replace(/\/$/, '') : 'localhost:5173')
 
-export function homePage(screens, { project = '', style = '' } = {}) {
+// The home page: what the next step is (3 steps), every screen as a card, search over screens and states.
+// The part inside <main> is also what a live update reads back (GET / again), so there is one renderer.
+export function homePage(screens, { project = '', style = '', appUrl = null } = {}) {
   const total = screens.reduce((n, s) => n + (s.states || 0), 0)
   const cards = screens
     .map((s) => {
       const name = s.file.replace(/\.html$/, '')
-      if (s.error) return `<a class="card" href="/screens/${esc(s.file)}" data-search="${esc(name.toLowerCase())}" data-name="${esc(name)}" data-mtime="0" data-states="0"><div class="th bad">${esc(s.error)}</div><div class="nm">${esc(name)}</div></a>`
+      const rev = `${s.mtime ?? 0}-${s.notes ?? 0}-${s.error ? 'x' : ''}`
+      if (s.error) return `<div class="card" data-name="${esc(name)}" data-search="${esc(name.toLowerCase())}" data-mtime="0" data-states="0" data-rev="${esc(rev)}"><div class="th bad"><p>This file could not be read. In Claude Code, say: check ${esc(name)}.</p><details><summary>Details</summary><p class="mono">${esc(s.error)}</p></details></div><div class="nm"><a href="/screens/${esc(s.file)}">${esc(name)}</a></div></div>`
       const href = `/screens/${esc(s.file)}${s.first ? `#${esc(encodeURIComponent(s.first))}` : ''}`
       const thumb = s.first ? `<iframe src="/__state/${esc(name)}/${esc(encodeURIComponent(s.first))}" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" title=""></iframe>` : ''
-      const notes = s.notes ? `<span class="badge">${s.notes} note${s.notes > 1 ? 's' : ''}</span>` : ''
+      const notes = s.notes ? `<span class="badge">${plural(s.notes, 'note')}</span>` : ''
       const search = [name, ...(s.labels ?? [])].join(' ').toLowerCase()
-      return `<a class="card" href="${href}" data-search="${esc(search)}" data-name="${esc(name)}" data-mtime="${s.mtime ?? 0}" data-states="${s.states}"><div class="th">${thumb}</div><div class="nm"><span>${esc(name)}</span>${notes}</div><div class="mt"><span>${s.states} states</span><span>·</span><time data-mtime="${s.mtime ?? 0}"></time></div></a>`
+      const hits = (s.list ?? []).map((x) => `<a href="/screens/${esc(s.file)}#${esc(encodeURIComponent(x.id))}" data-q="${esc([x.label, x.id].filter(Boolean).join(' ').toLowerCase())}" hidden>${esc(x.label || x.id)}</a>`).join('')
+      return `<div class="card" data-name="${esc(name)}" data-search="${esc(search)}" data-mtime="${s.mtime ?? 0}" data-states="${s.states}" data-rev="${esc(rev)}"><a class="th" href="${href}" tabindex="-1" aria-hidden="true">${thumb}</a><div class="nm"><a href="${href}">${esc(name)}</a><span class="newtag" hidden>New</span>${notes}</div><div class="mt"><span>${plural(s.states, 'state')}</span><span>·</span><time data-mtime="${s.mtime ?? 0}"></time></div><div class="hits" hidden>${hits}<span class="more" hidden></span></div></div>`
     })
     .join('')
-  const body = screens.length
-    ? `<div class="grid" id="grid">${cards}</div><p class="none" id="none" hidden>No screen matches.</p>`
-    : `<div class="empty"><h2>No screens yet</h2><p>Open the <a href="/__copy">Copy window</a>, bring your app to a state, and press Copy. The screen shows up here.</p></div>`
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Designs</title>${FONT_LINK}<style>${CHROME_CSS}
-.top{height:52px;border-bottom:1px solid var(--line);background:var(--chrome);display:flex;align-items:center;padding:0 20px;gap:14px;position:sticky;top:0;z-index:2}
-.mark{width:20px;height:20px;border-radius:5px;background:var(--ink);position:relative;flex:none}.mark:after{content:"";position:absolute;inset:5px 5px 9px;border:1.6px solid var(--bg);border-radius:2px}
-.crumb{display:flex;align-items:center;gap:8px;color:var(--mute);white-space:nowrap}.crumb b{color:var(--ink);font-weight:500}
-.sp{flex:1}.status{display:flex;align-items:center;gap:8px;color:var(--dim);font-size:12.5px;padding:0 11px;height:30px;border:1px solid var(--line);border-radius:999px;white-space:nowrap}
-.search{position:relative;width:300px}.search svg{position:absolute;left:10px;top:9px;color:var(--mute)}.search .field{padding-left:32px;height:30px}.search .kbd{position:absolute;right:8px;top:7px}
-.wrap{padding:28px 32px 48px}.head{display:flex;align-items:flex-end;gap:16px;margin-bottom:22px}
-h1{font-size:22px;font-weight:600;letter-spacing:-.02em}.sub{color:var(--mute);margin-top:4px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:24px 20px}
-.card{display:block;border-radius:12px;outline:none}
-.th{aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:#fff;border:1px solid var(--line);position:relative;transition:border-color .15s,transform .15s}
+  const openCopy = `<a class="btn primary" id="openCopy" href="/__copy" target="_blank" data-focus="/__copy">${ICONS.copy}Open Copy tab</a>`
+  const step = (key, n, html, extra = '') => `<li data-step="${key}" data-done="false"><span class="num">${n}</span><div>${html}</div><span class="done">${ICONS.check}Done</span>${extra}</li>`
+  const content = screens.length
+    ? `<div class="head"><div><h1>Screens</h1><p class="sub" id="count">${plural(screens.length, 'screen')} · ${plural(total, 'state')}</p><p class="explain">A screen holds several states: the same page with a menu open, empty, loading.</p></div><div class="sp"></div>
+<div class="seg" id="sort" role="group" aria-label="Sort"><button type="button" data-sort="recent" aria-pressed="true">Recent</button><button type="button" data-sort="name" aria-pressed="false">A–Z</button><button type="button" data-sort="states" aria-pressed="false">Most states</button></div>${openCopy}</div>
+<ol class="strip" id="steps" aria-label="How it works">${step('copy', 1, 'Copy a screen')}${step('note', 2, 'Pick and write notes')}${step('say', 3, '<span class="saytext">In Claude Code say: <b>do my notes</b></span>', '<button type="button" class="btn" id="copyNotes" hidden>Copy "do my notes"</button>').replace('data-done="false">', 'data-done="false" data-next="false">')}</ol>
+<div class="grid" id="grid">${cards}</div><div class="none" id="none" hidden><p id="noneText">No screen matches</p><button type="button" class="btn" id="clear-search">Clear search</button></div>`
+    : `<section class="first"><h1>No screens yet</h1><p class="lead">Three steps to your first design change.</p><ol class="steps" id="steps">
+${step('app', 1, `<b>Open your app.</b> In this browser window, open your app in its own tab (for example ${esc(exampleAddress(appUrl))}).`)}
+${step('copy', 2, '<b>Copy a screen.</b> Go to the Copy tab, name what you see, press Copy state.')}
+${step('note', 3, '<b>Change it.</b> Open the screen here, press Pick, click any part and write a note. Then in Claude Code, say: do my notes.')}
+</ol>${openCopy}</section>`
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Screens</title>${UI_HEAD_JS}${FONT_LINK}<style>${CHROME_CSS}
+.crumb{display:flex;align-items:center;gap:8px;color:var(--dim);white-space:nowrap}.crumb b{color:var(--ink);font-weight:600}
+.search{position:relative;width:280px;flex:none}.search svg{position:absolute;left:12px;top:11px;color:var(--mute)}.search .field{padding-left:36px;padding-right:36px}.search .kbd{position:absolute;right:9px;top:9px}
+.wrap{max-width:1600px;margin:0 auto;padding:32px 32px 48px}.head{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+h1{font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}.sub{color:var(--dim);margin-top:4px}.explain{color:var(--mute);font-size:13px}
+.strip{list-style:none;display:flex;flex-wrap:wrap;gap:8px 28px;padding:12px 16px;margin:0 0 28px;border:1px solid var(--line);border-radius:12px;background:var(--chrome);color:var(--dim);font-size:13px}
+.strip li,.steps li{display:flex;align-items:center;gap:8px}.strip b{color:var(--ink)}
+.num{width:24px;height:24px;border-radius:50%;border:1px solid var(--edge);display:inline-grid;place-items:center;font-size:12px;font-weight:600;color:var(--dim);flex:none}
+.done{display:none;align-items:center;gap:4px;color:var(--ok);font-size:12px;font-weight:600}[data-done=true] .done{display:inline-flex}[data-done=true] .num{border-color:var(--ok);color:var(--ok)}
+[data-next=true] .num{background:var(--accent);border-color:var(--accent);color:#fff}[data-next=true] .saytext{color:var(--ink);font-weight:500}#copyNotes{height:28px;padding:0 12px;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:28px 24px}.card{min-width:0}
+.th{display:block;aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line);position:relative;transition:transform .15s,box-shadow .15s}
 .th iframe{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;transform-origin:0 0;transform:scale(var(--k,.16));pointer-events:none;background:#fff}
-.th.bad{background:var(--raise);color:var(--bad);padding:14px;font-size:12px}
-.card:hover .th,.card:focus-visible .th{border-color:var(--line2);transform:translateY(-2px)}.card:focus-visible .th{outline:2px solid var(--accent);outline-offset:2px}
-.nm{display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:500;min-width:0}.nm span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mt{color:var(--mute);font-size:12px;margin-top:2px;display:flex;gap:6px}
-.badge{margin-left:auto;flex:none;font-size:11px;color:var(--warn);background:rgba(245,184,75,.1);border-radius:999px;padding:1px 7px;font-weight:500}
-.empty{max-width:420px;margin:12vh auto;text-align:center;color:var(--dim)}.empty h2{color:var(--ink);font-size:16px;font-weight:600;margin-bottom:8px}.empty a{color:var(--accent)}
-.none{color:var(--mute);padding:40px 0;text-align:center}
-@media (max-width:720px){.status,.crumb span{display:none}.search{flex:1;width:auto}.wrap{padding:20px 16px}.head{flex-wrap:wrap}}
+a.th:hover{transform:translateY(-2px);box-shadow:0 10px 24px -10px rgba(0,0,0,.35)}.card.new .th{box-shadow:0 0 0 3px var(--accent)}
+.th.bad{background:var(--bad-bg);border-color:var(--bad);color:var(--ink);padding:12px;font-size:13px;overflow:auto}.th.bad p{margin-bottom:8px}.th.bad summary{color:var(--dim);cursor:pointer;font-size:12px}.th.bad .mono{font-size:12px;color:var(--dim);word-break:break-word}
+.nm{display:flex;align-items:center;gap:8px;margin-top:12px;min-width:0}.nm>a{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.newtag{flex:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;line-height:20px;padding:0 8px;border-radius:999px}
+.mt{color:var(--dim);font-size:13px;margin-top:2px;display:flex;gap:8px}
+.badge{margin-left:auto;flex:none;font-size:12px;font-weight:500;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 8px}
+.hits{margin-top:8px;display:grid;gap:4px}.hits a{display:block;padding:4px 8px;border-radius:8px;font-size:13px;background:var(--chrome);border:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.more{font-size:12px;color:var(--dim);padding:0 8px}
+.none{padding:48px 0;text-align:center;color:var(--dim);display:grid;justify-items:center;gap:12px}
+.first{max-width:640px;margin:8vh auto 0;padding:32px;border:1px solid var(--line);border-radius:12px;background:var(--chrome)}.lead{color:var(--dim);margin:4px 0 24px}
+.steps{list-style:none;padding:0;margin:0 0 28px;display:grid;gap:16px}.steps li{align-items:flex-start;gap:12px;line-height:1.5}.steps li>div{flex:1}.steps .num{margin-top:-1px}
+@media (max-width:860px){.crumb span{display:none}.search{flex:1;width:auto}.wrap{padding:20px 16px}}
 </style></head><body>
 <header class="top"><span class="mark"></span><div class="crumb"><span>html-design</span><span>/</span><b>${esc(project)}</b></div><div class="sp"></div>
-<div class="status"><span class="dot"></span>Live${style ? ` · ${esc(STYLE_NAMES[style] ?? style)}` : ''}</div>
+<div class="pill" id="pill"${style ? ` title="Style: ${esc(STYLE_NAMES[style] ?? style)}"` : ''}><span class="dot"></span>Live</div>
 <label class="search">${ICONS.search}<input id="q" class="field" placeholder="Search screens and states" aria-label="Search screens and states"><span class="kbd">/</span></label>
-<a class="ib" href="/__copy" target="_blank">${ICONS.copy}Copy window</a></header>
-<main class="wrap"><div class="head"><div><h1>Screens</h1><div class="sub">${screens.length} screen${screens.length === 1 ? '' : 's'} · ${total} states</div></div><div class="sp"></div>
-${screens.length ? '<div class="seg" id="sort" role="group" aria-label="Sort"><button type="button" data-sort="recent" aria-pressed="true">Recent</button><button type="button" data-sort="name" aria-pressed="false">A–Z</button><button type="button" data-sort="states" aria-pressed="false">Most states</button></div>' : ''}</div>
-${body}</main>
+<button type="button" class="btn icon" id="uiTheme"></button></header>
+<main class="wrap" id="main">${content}</main>
 <script>
 ${AGO_JS}
-document.querySelectorAll('time[data-mtime]').forEach(function (t) { var m = Number(t.getAttribute('data-mtime')); t.textContent = m ? ago(m) : '' })
-var grid = document.getElementById('grid'), q = document.getElementById('q')
-function fit() { document.querySelectorAll('.th').forEach(function (t) { t.style.setProperty('--k', t.clientWidth / 1440) }) }
-fit(); addEventListener('resize', fit)
+${PAGE_JS}
+var $ = function (id) { return document.getElementById(id) }
+var q = $('q')
+var each = function (sel, fn, root) { Array.prototype.forEach.call((root || document).querySelectorAll(sel), fn) }
+var plural = function (n, w) { return n + ' ' + w + (n === 1 ? '' : 's') }
+function fit() { each('.th', function (t) { t.style.setProperty('--k', t.clientWidth / 1440) }) }
+function times() { each('time[data-mtime]', function (t) { var m = Number(t.getAttribute('data-mtime')); t.textContent = m ? ago(m) : '' }) }
+var sortKey = 'recent'; try { sortKey = localStorage.getItem('hd-sort') || 'recent' } catch (e) {}
+// The order is CSS order, not a DOM move: moving a card would reload its preview. A new card goes first.
 function sortBy(k) {
+  sortKey = k
+  try { localStorage.setItem('hd-sort', k) } catch (e) {}
+  var grid = $('grid')
+  each('#sort button', function (b) { b.setAttribute('aria-pressed', String(b.dataset.sort === k)) })
   if (!grid) return
   var cards = Array.prototype.slice.call(grid.children)
   cards.sort(function (a, b) {
@@ -150,96 +209,320 @@ function sortBy(k) {
     if (k === 'states') return b.dataset.states - a.dataset.states
     return b.dataset.mtime - a.dataset.mtime
   })
-  cards.forEach(function (c) { grid.appendChild(c) })
-  document.querySelectorAll('#sort button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.sort === k)) })
-  try { localStorage.setItem('hd-sort', k) } catch (e) {}
+  cards.forEach(function (c, i) { c.style.order = c.classList.contains('new') ? -1 : i })
 }
-var saved = 'recent'; try { saved = localStorage.getItem('hd-sort') || 'recent' } catch (e) {}
-sortBy(saved)
-document.querySelectorAll('#sort button').forEach(function (b) { b.onclick = function () { sortBy(b.dataset.sort) } })
-q.oninput = function () {
-  var v = q.value.trim().toLowerCase(), shown = 0
+// Search: a card shows when its name or a state matches; up to 3 matching states are listed under it.
+function filter() {
+  var grid = $('grid')
   if (!grid) return
-  Array.prototype.forEach.call(grid.children, function (c) { var on = !v || c.dataset.search.indexOf(v) !== -1; c.hidden = !on; if (on) shown += 1 })
-  document.getElementById('none').hidden = shown > 0
+  var v = q.value.trim().toLowerCase(), shown = 0, hits = 0, states = 0, cards = 0
+  each('.card', function (c) {
+    cards += 1
+    states += Number(c.dataset.states) || 0
+    var k = 0
+    each('.hits a', function (a) { var on = !!v && a.dataset.q.indexOf(v) !== -1; if (on) k += 1; a.hidden = !on || k > 3 }, c)
+    var box = c.querySelector('.hits'), more = c.querySelector('.more')
+    if (box) box.hidden = !k
+    if (more) { more.hidden = k <= 3; more.textContent = '+' + (k - 3) + ' more' }
+    var on = !v || k > 0 || c.dataset.search.indexOf(v) !== -1
+    c.hidden = !on
+    if (on) { shown += 1; hits += k }
+  }, grid)
+  $('count').textContent = !v ? plural(cards, 'screen') + ' · ' + plural(states, 'state') : !shown ? 'No match' : hits ? plural(hits, 'state') + ' in ' + plural(shown, 'screen') : plural(shown, 'screen')
+  $('none').hidden = shown > 0
+  $('noneText').textContent = 'No screen matches "' + q.value.trim() + '"'
 }
+function firstMatch() {
+  var cards = Array.prototype.filter.call(document.querySelectorAll('#grid .card'), function (c) { return !c.hidden })
+  cards.sort(function (a, b) { return a.style.order - b.style.order })
+  if (!cards.length) return null
+  var hit = Array.prototype.filter.call(cards[0].querySelectorAll('.hits a'), function (a) { return !a.hidden })[0]
+  return (hit || cards[0].querySelector('.nm a')).getAttribute('href')
+}
+// Not named status: window.status is a built-in that turns any value into a string.
+var lastStatus = null
+function tick() {
+  if (!lastStatus) return
+  var done = { app: lastStatus.tabs > 0, copy: lastStatus.screens > 0, note: lastStatus.notesEver > 0, say: false }
+  each('#steps [data-step]', function (li) { li.setAttribute('data-done', String(!!done[li.dataset.step])) })
+  // Open notes: step 3 is next, says how many wait, and offers the words to copy.
+  var say = document.querySelector('[data-step="say"]')
+  if (!say) return
+  var next = lastStatus.notes > 0
+  say.setAttribute('data-next', String(next))
+  say.querySelector('.saytext').innerHTML = (next ? plural(lastStatus.notes, 'note') + ' waiting. ' : '') + 'In Claude Code say: <b>do my notes</b>'
+  $('copyNotes').hidden = !next
+}
+function render() { times(); fit(); sortBy(sortKey); filter(); tick() }
+// New or changed screens: marked New for 3 s. Their previews load again after the CSS build (stale).
+var stale = []
+function markNew(c) {
+  c.classList.add('new')
+  var tag = c.querySelector('.newtag')
+  if (tag) tag.hidden = false
+  stale.push(c.dataset.name)
+  setTimeout(function () { c.classList.remove('new'); if (tag) tag.hidden = true; sortBy(sortKey) }, 3000)
+}
+// Live: read the page again and change only what changed, so the search text, the scroll and loaded previews stay.
+function refresh() {
+  return fetch('/', { cache: 'no-store' }).then(function (r) { return r.text() }).then(function (t) {
+    var next = new DOMParser().parseFromString(t, 'text/html')
+    var grid = $('grid'), ng = next.getElementById('grid')
+    if (!grid || !ng) {
+      $('main').innerHTML = next.getElementById('main').innerHTML
+      each('#grid .card', markNew)
+      return render()
+    }
+    var old = {}, seen = {}
+    each('.card', function (c) { old[c.dataset.name] = c }, grid)
+    Array.prototype.slice.call(ng.children).forEach(function (c) {
+      var o = old[c.dataset.name]
+      seen[c.dataset.name] = 1
+      if (o && o.dataset.rev === c.dataset.rev) return
+      var fresh = document.importNode(c, true)
+      if (o) grid.replaceChild(fresh, o)
+      else grid.appendChild(fresh)
+      if (!o || o.dataset.mtime !== c.dataset.mtime) markNew(fresh)
+    })
+    for (var n in old) if (!seen[n]) old[n].remove()
+    render()
+  }, function () {})
+}
+function pill(live) {
+  $('pill').innerHTML = live ? '<span class="dot"></span>Live' : '<span class="dot off"></span>Session stopped. In Claude Code, type /html-design start'
+}
+function poll() {
+  fetch('/__status', { cache: 'no-store' }).then(function (r) { return r.json() }).then(function (s) {
+    lastStatus = s
+    pill(true)
+    tick()
+    if (s.screens !== document.querySelectorAll('#grid .card').length) refresh()
+  }, function () { pill(false) })
+}
+document.addEventListener('click', function (e) {
+  var c = e.target.closest && e.target.closest('#copyNotes')
+  if (c && navigator.clipboard) navigator.clipboard.writeText('do my notes').then(function () { c.textContent = 'Copied'; setTimeout(function () { c.textContent = 'Copy "do my notes"' }, 1500) }, function () {})
+  var b = e.target.closest && e.target.closest('#sort button')
+  if (b) sortBy(b.dataset.sort)
+  if (e.target.closest && e.target.closest('#clear-search')) { q.value = ''; filter(); q.focus() }
+})
+q.oninput = filter
+q.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { var to = firstMatch(); if (to) location.href = to }
+})
 addEventListener('keydown', function (e) {
   if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && document.activeElement !== q) { e.preventDefault(); q.focus() }
-  if (e.key === 'Escape' && document.activeElement === q) { q.value = ''; q.oninput(); q.blur() }
+  if (e.key === 'Escape' && document.activeElement === q) { q.value = ''; filter(); q.blur() }
 })
+addEventListener('resize', fit)
+render()
+poll(); setInterval(poll, 2000)
+try {
+  var events = new EventSource('/__reload')
+  events.addEventListener('change', refresh)
+  events.onmessage = function () {
+    var names = stale
+    stale = []
+    names.forEach(function (n) { each('.card', function (c) { if (c.dataset.name === n) { var f = c.querySelector('iframe'); if (f) f.src = f.src } }) })
+    refresh()
+  }
+} catch (e) {}
 </script></body></html>`
 }
 
-// The Copy window: not part of the app and not a design, so its script is inline.
+// The Copy tab: not part of the app and not a design, so its script is inline. A guided form: a card says
+// whether an app tab is open (and switches the copy buttons), one searchable field picks the screen, one field
+// names the view, errors and questions sit under the fields and the main button.
 export function copyWindow({ screens, widths }) {
-  const options = screens.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('') + '<option value="__new">New screen</option>'
+  const rows = screens.map((s, i) => `<li role="option" id="opt-${i}" data-value="${esc(s)}">${esc(s)}</li>`).join('')
   const widthBtns = widths.map((w, i) => `<button type="button" data-width="${w}" aria-pressed="${i === 0}">${w}</button>`).join('')
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Copy</title>${FONT_LINK}<style>${CHROME_CSS}
-body{background:var(--chrome);min-height:100vh}
-.top{height:48px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--line)}.top b{font-weight:600}.sp{flex:1}
-#live{display:flex;align-items:center;gap:8px;color:var(--dim);font-size:12.5px}
-.pad{padding:0 16px}
-#tab{margin:14px 16px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
-.tabrow{display:flex;align-items:center;gap:10px}.fav{width:28px;height:28px;border-radius:7px;border:1px solid var(--line2);display:grid;place-items:center;color:var(--mute);flex:none}
-.tt{flex:1;min-width:0;line-height:1.3}.tt b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tt span{display:block;color:var(--mute);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#tabPick{margin-top:10px}.wrow{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--mute);font-size:12px}
-label{display:block;color:var(--mute);font-size:12px;margin:16px 0 6px}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}#newScreen{margin-top:8px}
-.go{margin:20px 16px 0;width:calc(100% - 32px);height:40px;border-radius:9px;font-size:13.5px}.go .kbd{color:#55555c;border-color:#c8c8cc}
-.alt{margin:8px 16px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.hint{margin:8px 16px 0;color:var(--mute);font-size:12px}
-#msg{margin:12px 16px 0;min-height:18px;font-size:12.5px;color:var(--dim)}#msg.err{color:var(--bad)}#msg.ok{color:var(--ok)}
-#tabs{margin:8px 16px 0;display:grid;gap:6px}#tabs button{justify-content:flex-start}
-.rec{margin-top:20px;border-top:1px solid var(--line);padding:14px 16px 24px}
-.rec h4{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);font-weight:500;margin-bottom:6px}
-.it{display:flex;align-items:center;gap:10px;padding:7px 6px;margin:0 -6px;border-radius:8px}.it:hover{background:var(--hover)}
-.it .th{width:48px;height:30px;border-radius:5px;overflow:hidden;border:1px solid var(--line);position:relative;background:#fff;flex:none}
-.it .th iframe{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;transform:scale(.0333);transform-origin:0 0;pointer-events:none}
-.it .time{color:var(--mute);font-size:12px}.empty{color:var(--mute);font-size:12.5px;padding:6px 0}
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Copy tab</title>${UI_HEAD_JS}${FONT_LINK}<style>${CHROME_CSS}
+.top b{font-weight:600}.col{max-width:560px;margin:0 auto;padding:24px 24px 48px}
+h1{font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}.lead{color:var(--dim);margin:4px 0 20px}
+.box{border:1px solid var(--line);border-radius:12px;background:var(--chrome);padding:16px}
+.notice{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--warn-edge);background:var(--warn-bg);border-radius:12px;padding:16px;line-height:1.5}.notice svg{color:var(--warn);width:20px;height:20px;margin-top:1px}
+.tabrow{display:flex;align-items:center;gap:12px}.fav{width:32px;height:32px;border-radius:8px;border:1px solid var(--edge);display:grid;place-items:center;color:var(--dim);flex:none}
+.tt{flex:1;min-width:0;line-height:1.35}.tt b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tt span{display:block;color:var(--dim);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tabPick{margin-top:12px}.wrow{margin-top:12px}.wrow .lab{display:block;font-size:13px;font-weight:500;margin-bottom:8px}
+label{display:block;font-size:13px;font-weight:500;margin:20px 0 8px}
+.hint{color:var(--dim);font-size:13px;margin-top:8px}.err{display:flex;gap:8px;align-items:center;color:var(--bad);font-size:13px;font-weight:500;margin-top:8px}
+.combo{position:relative}#screenList{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:5;list-style:none;margin:0;padding:4px;max-height:240px;overflow:auto;background:var(--raise);border:1px solid var(--edge);border-radius:8px;box-shadow:0 12px 32px -12px rgba(0,0,0,.3)}
+#screenList li{padding:8px 12px;border-radius:8px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#screenList li:hover,#screenList li[aria-selected=true]{background:var(--hover)}
+#screenList li[data-create]{color:var(--link);font-weight:500;border-top:1px solid var(--line);border-radius:0 0 8px 8px}#screenList li[data-create]:first-child{border-top:0;border-radius:8px}
+.idline{font-size:13px;color:var(--dim);margin-top:4px}.idline code{font:500 13px "Geist Mono",ui-monospace,monospace;color:var(--ink)}
+.linkbtn{background:none;border:0;padding:0;color:var(--link);font:inherit;cursor:pointer;text-decoration:underline}
+.go{width:100%;height:44px;margin-top:24px;font-size:16px;font-weight:600}.keyhint{text-align:center;color:var(--dim);font-size:13px;margin-top:8px}
+.ask{margin-top:12px;padding:16px;border:1px solid var(--edge);border-radius:12px;background:var(--chrome)}.ask p{font-weight:600;margin-bottom:12px}.askrow{display:flex;flex-wrap:wrap;gap:8px}
+.alt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.alt .btn{width:100%}.alt .hint{grid-column:1 / -1;text-align:right;margin-top:0}
+.why{display:flex;gap:8px;align-items:center;justify-content:center;color:var(--warn);font-size:13px;font-weight:500;margin-top:8px}
+.later{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:8px 12px 8px 16px;border-radius:12px;background:var(--sel);color:var(--sel-ink);font-weight:500}
+#msg{margin-top:12px}#msg:empty,#tabs:empty{display:none}#msg.err{color:var(--bad)}#msg.ok{color:var(--ok)}#msg a{font-weight:600;color:var(--link)}
+#tabs{margin-top:8px;display:grid;gap:8px}#tabs button{justify-content:flex-start}
+.rec{margin-top:28px;border-top:1px solid var(--line);padding-top:20px}.rec h2{font-size:16px;font-weight:600;margin-bottom:8px}
+.it{display:flex;align-items:center;gap:12px;padding:8px;margin:0 -8px;border-radius:8px;color:var(--ink)}.it:hover{background:var(--hover);text-decoration:none}
+.it .th{width:56px;height:35px;border-radius:6px;overflow:hidden;border:1px solid var(--line);position:relative;background:#fff;flex:none}
+.it .th iframe{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;transform:scale(.0389);transform-origin:0 0;pointer-events:none}
+.it .time{color:var(--dim);font-size:13px}.empty{color:var(--dim);font-size:13px;padding:8px 0}
 </style></head><body>
-<div class="top"><b>Copy</b><div class="sp"></div><span id="live"><span class="dot off"></span>Checking…</span></div>
-<div id="tab"><div class="tabrow"><span class="fav">${ICONS.globe}</span><div class="tt"><b id="tabTitle">No app tab</b><span id="tabUrl" class="mono">Open your app in the session browser</span></div></div>
+<header class="top"><a class="btn" href="/" target="_blank" data-focus="/">${ICONS.back}Screens</a><b>Copy tab</b><div class="sp"></div><span id="live" class="pill"><span class="dot off"></span>Checking…</span><button type="button" class="btn icon" id="uiTheme"></button></header>
+<main class="col">
+<h1>Copy a screen</h1><p class="lead">Bring your app tab to what you want, name it here, press Copy state.</p>
+<section id="ready" class="notice" hidden>${ICONS.alert}<div id="readyText"></div></section>
+<section id="tab" class="box"><div class="tabrow"><span class="fav">${ICONS.globe}</span><div class="tt"><b id="tabTitle">Looking for your app tab…</b><span id="tabUrl" class="mono"></span></div></div>
 <select id="tabPick" class="field" aria-label="App tab" hidden></select>
-<div class="wrow"><span>App width</span><div class="seg" id="widths">${widthBtns}</div></div></div>
-<div class="pad"><label for="screen">Screen</label><select id="screen" class="field">${options}</select><input id="newScreen" class="field" placeholder="New screen name" hidden>
-<div class="two"><div><label for="state">State id</label><input id="state" class="field mono" placeholder="menu-open"></div><div><label for="label">Label</label><input id="label" class="field" placeholder="Menu open"></div></div></div>
-<button type="button" id="copy" class="ib p go">${ICONS.copy}Copy state<span class="kbd">Ctrl Shift S</span></button>
-<div class="alt"><button type="button" id="copyLater" class="ib">Copy in 5 s</button><button type="button" id="copy3" class="ib">Copy at ${widths.length} widths</button></div>
-<p class="hint">To copy an open menu: press Ctrl+Shift+S in the app tab, or click Copy in 5 s and open the menu.</p>
-<p class="hint">Copy at ${widths.length} widths resizes the window, so open menus close.</p>
+<div class="wrow"><span class="lab">App width</span><div class="seg" id="widths" role="group" aria-label="App width">${widthBtns}</div><p class="hint" id="widthHint">Resizes your app window.</p></div></section>
+<label for="screen">Screen</label><div class="combo"><input id="screen" class="field" role="combobox" aria-expanded="false" aria-controls="screenList" aria-autocomplete="list" aria-describedby="screenHint" autocomplete="off" value="${esc(screens[0] ?? '')}"><ul id="screenList" role="listbox" aria-label="Screens" hidden>${rows}</ul></div>
+<p class="hint" id="screenHint">Pick one, or type a new name</p><p class="err" id="screenErr" role="alert" hidden></p>
+<label for="name">Name this view</label><input id="name" class="field" autocomplete="off" aria-describedby="nameHint">
+<p class="hint" id="nameHint">What is on screen, for example: Menu open</p><p class="err" id="nameErr" role="alert" hidden></p>
+<p class="idline" id="idLine" hidden>Saved as <code id="idShow"></code> · <button type="button" class="linkbtn" id="changeId">Change id</button></p>
+<div id="idWrap" hidden><label for="state">State id</label><input id="state" class="field mono" autocomplete="off"><p class="hint">Letters, digits, - _ . Links between states use it.</p></div>
+<button type="button" id="copy" class="btn primary go" disabled>${ICONS.copy}Copy state</button>
+<p class="why" id="why" hidden></p>
+<p class="keyhint" id="keyhint" hidden>Menu open in your app? Press Ctrl+Shift+S there, or use Copy in 5 s.</p>
+<div id="ask" class="ask" role="alertdialog" aria-labelledby="askText" hidden><p id="askText"></p><div class="askrow"><button type="button" id="askReplace" class="btn primary">Replace</button><button type="button" id="askNumber" class="btn"></button><button type="button" id="askCancel" class="btn">Cancel</button></div></div>
+<div class="alt"><button type="button" id="copyLater" class="btn" disabled>Copy in 5 s</button><button type="button" id="copy3" class="btn" disabled>Copy at ${widths.length} widths</button><p class="hint" id="copy3Hint">Resizes your app window, so open menus close.</p></div>
+<div id="later" class="later" hidden><span id="laterText"></span><button type="button" id="cancel" class="btn">Cancel</button></div>
 <div id="tabs"></div><div id="msg" role="status"></div>
-<div class="rec"><h4>Recent</h4><div id="recent"><div class="empty">Copies you make show up here.</div></div></div>
+<section class="rec"><h2>Recent</h2><div id="recent"><div class="empty">Copies you make show up here.</div></div></section>
+</main>
 <script>
 ${AGO_JS}
+${PAGE_JS}
 var WIDTHS = ${JSON.stringify(widths)}
+var SCREENS = ${JSON.stringify(screens)}
+var slug = ${slugScreen.toString()}
+var slugState = ${slugState.toString()}
 var $ = function (id) { return document.getElementById(id) }
 var esc = function (v) { return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') }
-var msg = function (t, kind) { $('msg').textContent = t; $('msg').className = kind || '' }
-$('screen').onchange = function () { $('newScreen').hidden = $('screen').value !== '__new' }
-$('newScreen').hidden = $('screen').value !== '__new'
+var ALERT = ${JSON.stringify(ICONS.alert)}
+var BUTTONS = ['copy', 'copyLater', 'copy3']
+var LABELS = {}
+BUTTONS.forEach(function (id) { LABELS[id] = $(id).innerHTML })
+// The chord is Control on a Mac too, not Cmd.
+if (/Mac|iPhone|iPad/.test(navigator.platform || '')) $('keyhint').textContent = 'Menu open in your app? Press Control+Shift+S (not Cmd) there, or use Copy in 5 s.'
+// text: progress in the button with a spinner; null puts the label back.
+function label(id, text) {
+  $(id).innerHTML = text == null ? LABELS[id] : '<span class="spin" aria-hidden="true"></span><span>' + esc(text) + '</span>'
+  if (text == null) $(id).removeAttribute('aria-busy'); else $(id).setAttribute('aria-busy', 'true')
+}
+function msg(html, kind) { $('msg').innerHTML = html; $('msg').className = kind || '' }
+function say(text, kind) { msg(esc(text), kind) }
+function fieldError(which, text) {
+  var f = $(which === 'screen' ? 'screen' : 'name')
+  $(which + 'Err').hidden = !text
+  $(which + 'Err').innerHTML = text ? ALERT + '<span>' + esc(text) + '</span>' : ''
+  if (text) f.setAttribute('aria-invalid', 'true'); else f.removeAttribute('aria-invalid')
+}
 function postJson(path, body) {
   return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function (r) { return r.json().catch(function () { return {} }).then(function (j) { return { status: r.status, body: j } }) })
 }
-var tabs = []
+// Screen: one field. Typing lists the matching screens; a name that is no screen yet adds the row
+// Create new screen "<text>", and only that row makes a new one. choice: { value, isNew } or null.
+var choice = SCREENS.length ? { value: SCREENS[0] } : null
+var active = -1
+function options() { return Array.prototype.slice.call($('screenList').querySelectorAll('[role=option]')) }
+function openList() {
+  var v = $('screen').value.trim(), low = v.toLowerCase(), key = slug(v)
+  var all = !v || (choice && !choice.isNew && v === choice.value)
+  var hits = SCREENS.filter(function (s) { return all || s.indexOf(low) !== -1 || (key && s.indexOf(key) !== -1) })
+  var html = hits.map(function (s, i) { return '<li role="option" id="opt-' + i + '" data-value="' + esc(s) + '">' + esc(s) + '</li>' }).join('')
+  if (v && SCREENS.indexOf(key) === -1) html += '<li role="option" id="opt-new" data-create="1" data-value="' + esc(v) + '">Create new screen "' + esc(v) + '"</li>'
+  $('screenList').innerHTML = html
+  $('screenList').hidden = !html
+  $('screen').setAttribute('aria-expanded', String(!!html))
+  active = -1
+  $('screen').removeAttribute('aria-activedescendant')
+}
+function closeList() { $('screenList').hidden = true; $('screen').setAttribute('aria-expanded', 'false'); active = -1 }
+function pick(li) {
+  var v = li.getAttribute('data-value')
+  choice = li.hasAttribute('data-create') ? { value: v, isNew: true } : { value: v }
+  $('screen').value = v
+  closeList()
+  fieldError('screen', '')
+  presetSoon()
+}
+function move(by) {
+  var list = options()
+  if (!list.length) return
+  active = (active + by + list.length) % list.length
+  list.forEach(function (li, i) { li.setAttribute('aria-selected', String(i === active)) })
+  $('screen').setAttribute('aria-activedescendant', list[active].id)
+  list[active].scrollIntoView({ block: 'nearest' })
+}
+$('screen').addEventListener('input', function () {
+  var key = slug($('screen').value)
+  choice = key && SCREENS.indexOf(key) !== -1 ? { value: key } : null
+  fieldError('screen', '')
+  openList()
+})
+$('screen').addEventListener('focus', openList)
+$('screen').addEventListener('blur', function () { setTimeout(closeList, 150) })
+$('screen').addEventListener('keydown', function (e) {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if ($('screenList').hidden) openList(); move(e.key === 'ArrowDown' ? 1 : -1) }
+  else if (e.key === 'Enter' && !$('screenList').hidden && active >= 0) { e.preventDefault(); pick(options()[active]) }
+  else if (e.key === 'Escape') closeList()
+})
+// mousedown, not click: the field keeps the focus, so the list is still there when the click lands.
+$('screenList').addEventListener('mousedown', function (e) {
+  var li = e.target.closest && e.target.closest('[role=option]')
+  if (!li) return
+  e.preventDefault()
+  pick(li)
+})
+// Ready: an app tab is open. Working: a copy runs. The copy buttons need ready and not working; the key line hides with them.
+var tabs = [], ready = false, working = false
+function sync() {
+  var off = working || !ready
+  BUTTONS.forEach(function (id) { $(id).disabled = off })
+  $('keyhint').hidden = off
+}
+function notReady(html, why) {
+  ready = false
+  $('ready').hidden = false
+  $('tab').hidden = true
+  $('readyText').innerHTML = html
+  $('why').innerHTML = ALERT + '<span>' + esc(why) + '</span>'
+  $('why').hidden = false
+  sync()
+}
 function chosenTab() { return tabs.length > 1 ? $('tabPick').value : undefined }
 function showTabs() {
-  return fetch('/__tabs').then(function (r) { return r.json() }).then(function (list) {
+  var get = function (p) { return fetch(p, { cache: 'no-store' }).then(function (r) { return r.json() }) }
+  return Promise.all([get('/__tabs'), get('/__status')]).then(function (got) {
+    var list = got[0], st = got[1]
     tabs = list
-    $('live').innerHTML = '<span class="dot"></span>Session live'
+    if (!st.browser) {
+      $('live').innerHTML = '<span class="dot off"></span>No session browser'
+      return notReady('<b>The session browser is not open.</b> In Claude Code, type /html-design start. This card updates by itself.', 'Start the session first')
+    }
+    $('live').innerHTML = '<span class="dot"></span>' + (list.length ? 'Session live' : 'Session live · No app tab')
+    if (!list.length) return notReady("<b>Your app is not open yet.</b> Open a new tab in this browser window (Ctrl+T or Cmd+T) and go to your app's address. This card updates by itself.", 'Open your app first')
+    ready = true
+    $('ready').hidden = true
+    $('tab').hidden = false
+    $('why').hidden = true
+    sync()
     var keep = $('tabPick').value
     $('tabPick').hidden = list.length < 2
     $('tabPick').innerHTML = list.map(function (t) { return '<option value="' + esc(t.id) + '">' + esc(t.title || t.url) + '</option>' }).join('')
     if (keep && list.some(function (t) { return t.id === keep })) $('tabPick').value = keep
     var t = list.filter(function (x) { return x.id === $('tabPick').value })[0] || list[0]
-    $('tabTitle').textContent = t ? (t.title || 'Untitled tab') : 'No app tab'
-    $('tabUrl').textContent = t ? (t.url.replace(/^https?:\\/\\//, '') + (t.width ? ' · ' + t.width + ' px' : '')) : 'Open your app in the session browser'
-    if (t && t.width) Array.prototype.forEach.call(document.querySelectorAll('[data-width]'), function (b) { b.setAttribute('aria-pressed', String(Number(b.dataset.width) === t.width)) })
-  }, function () { $('live').innerHTML = '<span class="dot off"></span>Session stopped' })
+    $('tabTitle').textContent = t.title || 'Untitled tab'
+    $('tabUrl').textContent = t.url.replace(/^https?:\\/\\//, '') + (t.width ? ' · ' + t.width + ' px' : '')
+    if (t.width) Array.prototype.forEach.call(document.querySelectorAll('[data-width]'), function (b) { b.setAttribute('aria-pressed', String(Number(b.dataset.width) === t.width)) })
+  }, function () {
+    $('live').innerHTML = '<span class="dot off"></span>Session stopped'
+    notReady('<b>The session is stopped.</b> In Claude Code, type /html-design start. This card updates by itself.', 'Start the session first')
+  })
 }
 // A delayed copy names a tab only when the user picked one; else the server takes the tab the user looks at.
 var tabPicked = false
 $('tabPick').onchange = function () { tabPicked = true; showTabs() }
+var viewerHref = function (screen, state, width) { return '/screens/' + slug(screen) + '.html#' + encodeURIComponent(state) + (width ? '@' + width : '') }
+var openLink = function (href) { return '<a id="openViewer" href="' + esc(href) + '" target="_blank" data-focus="' + esc(href) + '">Open in viewer</a>' }
 function showRecent() {
   return fetch('/__recent').then(function (r) { return r.json() }).then(function (list) {
     if (!list.length) return
@@ -248,102 +531,202 @@ function showRecent() {
     list.forEach(function (x) {
       var last = rows[rows.length - 1]
       if (last && last.screen === x.screen && last.state === x.state) { if (x.width && last.widths.indexOf(x.width) === -1) last.widths.unshift(x.width); return }
-      rows.push({ screen: x.screen, state: x.state, width: x.width, at: x.at, widths: x.width ? [x.width] : [] })
+      rows.push({ screen: x.screen, state: x.state, label: x.label, width: x.width, at: x.at, widths: x.width ? [x.width] : [] })
     })
     $('recent').innerHTML = rows.slice(0, 6).map(function (x) {
-      return '<a class="it" target="_blank" href="/screens/' + esc(x.screen) + '.html#' + encodeURIComponent(x.state) + (x.width ? '@' + x.width : '') + '"><span class="th"><iframe loading="lazy" tabindex="-1" aria-hidden="true" src="/__state/' + esc(x.screen) + '/' + encodeURIComponent(x.state) + '"></iframe></span>' +
-        '<span class="tt"><b>' + esc(x.state) + '</b><span>' + esc(x.screen) + (x.widths.length ? ' · ' + x.widths.sort(function (a, b) { return b - a }).join(' · ') : '') + '</span></span><span class="time">' + ago(x.at) + '</span></a>'
+      var href = viewerHref(x.screen, x.state, x.width)
+      return '<a class="it" target="_blank" href="' + esc(href) + '" data-focus="' + esc(href) + '"><span class="th"><iframe loading="lazy" tabindex="-1" aria-hidden="true" src="/__state/' + esc(x.screen) + '/' + encodeURIComponent(x.state) + '"></iframe></span>' +
+        '<span class="tt"><b>' + esc(x.label || x.state) + '</b><span>' + esc(x.screen) + (x.widths.length ? ' · ' + x.widths.sort(function (a, b) { return b - a }).join(' · ') : '') + '</span></span><span class="time">' + ago(x.at) + '</span></a>'
     }).join('')
   }, function () {})
 }
 Array.prototype.forEach.call(document.querySelectorAll('[data-width]'), function (b) {
   b.onclick = function () {
-    postJson('/__resize', { width: Number(b.getAttribute('data-width')) }).then(function (r) { msg(r.status === 200 ? 'App width: ' + b.getAttribute('data-width') + ' px' : (r.body.error || 'Resize failed'), r.status === 200 ? '' : 'err'); showTabs() })
+    postJson('/__resize', { width: Number(b.getAttribute('data-width')) }).then(function (r) { say(r.status === 200 ? 'App width: ' + b.getAttribute('data-width') + ' px' : (r.body.error || 'Resize failed'), r.status === 200 ? '' : 'err'); showTabs() })
   }
 })
+// The state id comes from the name, until the user types an id of their own (Change id).
+var customId = false
+function stateId() { return customId && $('state').value.trim() ? $('state').value.trim() : slugState($('name').value) }
+function showId() { $('idShow').textContent = stateId(); $('idLine').hidden = !stateId() }
+$('name').addEventListener('input', function () { if (!customId) $('state').value = slugState($('name').value); showId(); fieldError('name', '') })
+$('state').addEventListener('input', function () { customId = !!$('state').value.trim(); showId(); fieldError('name', '') })
+$('changeId').onclick = function () { $('idWrap').hidden = false; $('state').value = stateId(); $('state').focus() }
 function names() {
-  var screen = $('screen').value === '__new' ? $('newScreen').value.trim() : $('screen').value
-  return { screen: screen, state: $('state').value.trim(), label: $('label').value.trim() || undefined }
+  return { screen: choice ? choice.value : '', state: stateId(), label: $('name').value.trim() || undefined }
 }
-function sendPreset() { postJson('/__preset', names()).catch(function () {}) }
+// After a saved copy the name is cleared for the next one, and the chord forgets it too.
+function clearName() {
+  $('name').value = ''
+  $('state').value = ''
+  customId = false
+  $('idWrap').hidden = true
+  showId()
+  sendPreset()
+  $('name').focus()
+}
+// Checked when Copy is pressed, never while typing. The first bad field gets the focus.
+function check(n) {
+  say('')
+  fieldError('screen', '')
+  fieldError('name', '')
+  var typed = $('screen').value.trim()
+  if (!choice) fieldError('screen', typed ? 'Pick a screen from the list, or Create new screen "' + typed + '"' : 'Pick a screen, or type a new name')
+  else if (!slug(choice.value)) fieldError('screen', 'Use a letter or a digit in the screen name')
+  if (!$('name').value.trim() && !customId) fieldError('name', 'Give this view a name')
+  else if (!n.state) fieldError('name', 'Use a letter or a digit in the name, or set the id with Change id')
+  var bad = document.querySelector('[aria-invalid=true]')
+  if (bad) bad.focus()
+  return !bad
+}
+// The chord (Ctrl+Shift+S in the app tab) copies under the names here; an empty name clears them.
+function sendPreset() { var n = names(); postJson('/__preset', n.screen && n.state ? n : { clear: true }).catch(function () {}) }
 var presetTimer = null
-;['screen', 'newScreen', 'state', 'label'].forEach(function (id) {
-  $(id).addEventListener('input', function () { clearTimeout(presetTimer); presetTimer = setTimeout(sendPreset, 300) })
-  $(id).addEventListener('change', function () { clearTimeout(presetTimer); presetTimer = setTimeout(sendPreset, 300) })
-})
-// One copy. Resolves to true when saved; asks about an existing state and about which tab.
-function send(extra) {
-  var body = names()
+function presetSoon() { clearTimeout(presetTimer); presetTimer = setTimeout(sendPreset, 300) }
+;['screen', 'name', 'state'].forEach(function (id) { $(id).addEventListener('input', presetSoon) })
+// The free numbered name: "Menu open 2" (menu-open-2), then 3, and so on.
+function nextFree(n) {
+  var base = n.label || n.state
+  var tryK = function (k) {
+    var next = { screen: n.screen, state: (n.state + '-' + k).slice(0, 120), label: base + ' ' + k }
+    return fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(next.state)).then(function (r) { return r.status === 200 && k < 99 ? tryK(k + 1) : next }, function () { return next })
+  }
+  return tryK(2)
+}
+// The name is taken: ask here, under the main button. Resolves { kind: 'replace' | 'number' | 'cancel', n }.
+function askExisting(n) {
+  return nextFree(n).then(function (n2) {
+    return new Promise(function (done) {
+      $('askText').textContent = '"' + (n.label || n.state) + '" already exists in ' + slug(n.screen) + '. Replace it?'
+      $('askNumber').textContent = 'Save as "' + n2.label + '"'
+      $('ask').hidden = false
+      $('askReplace').focus()
+      var end = function (kind) {
+        $('ask').hidden = true
+        $('askReplace').onclick = $('askNumber').onclick = $('askCancel').onclick = null
+        if (kind === 'cancel') say('Not copied.')
+        done({ kind: kind, n: kind === 'number' ? n2 : n })
+      }
+      $('askReplace').onclick = function () { end('replace') }
+      $('askNumber').onclick = function () { end('number') }
+      $('askCancel').onclick = function () { end('cancel') }
+    })
+  })
+}
+// One copy of n. Resolves to the names saved, or null; asks about an existing state and about which tab.
+function send(n, extra) {
+  var body = { screen: n.screen, state: n.state, label: n.label }
   if (chosenTab() && !('tab' in extra)) body.tab = chosenTab()
   for (var k in extra) body[k] = extra[k]
   $('tabs').textContent = ''
-  sendPreset()
   return postJson('/__copy', body).then(function (r) {
     if (r.status === 201) {
-      msg('Saved ' + body.state + (r.body.images ? ' · ' + r.body.images + ' images' : '') + (r.body.warnings && r.body.warnings.length ? ' · ' + r.body.warnings.join('; ') : ''), 'ok')
+      var warn = r.body.warnings && r.body.warnings.length ? '<br><span class="hint">' + esc(r.body.warnings.join('; ')) + '</span>' : ''
+      msg('Saved "' + esc(body.label || body.state) + '" in ' + esc(slug(body.screen)) + (r.body.images ? ' · ' + r.body.images + ' images' : '') + '. ' + openLink(viewerHref(body.screen, body.state)) + warn, 'ok')
+      if (SCREENS.indexOf(slug(body.screen)) === -1) SCREENS.push(slug(body.screen))
+      choice = { value: slug(body.screen) }
+      $('screen').value = choice.value
       showRecent()
-      return true
+      return n
     }
+    if (r.status === 409 && r.body.cancelled) { say('Copy cancelled.'); return null }
     if (r.status === 409 && r.body.tabs) {
-      msg('Pick the tab to copy:')
+      say('Pick the tab to copy:')
       r.body.tabs.forEach(function (t, i) {
         var b = document.createElement('button')
         b.type = 'button'
-        b.className = 'ib'
+        b.className = 'btn'
         b.textContent = t.title || 'Tab ' + (i + 1)
-        b.onclick = function () { var e = {}; for (var k in extra) e[k] = extra[k]; e.tab = t.id; send(e) }
+        b.onclick = function () { var e = {}; for (var k in extra) e[k] = extra[k]; e.tab = t.id; start(); send(n, e).then(after) }
         $('tabs').appendChild(b)
       })
-      return false
+      return null
     }
     if (r.status === 409 && r.body.exists) {
-      if (confirm('State ' + body.state + ' already exists at this width. Replace?')) { var e = {}; for (var k in extra) e[k] = extra[k]; e.replace = true; return send(e) }
-      msg('Not copied.')
-      return false
+      return askExisting(n).then(function (a) {
+        if (a.kind === 'cancel') return null
+        var e = {}
+        for (var k in extra) e[k] = extra[k]
+        if (a.kind === 'replace') e.replace = true
+        return send(a.n, e)
+      })
     }
-    msg(r.body.error || 'Copy failed (' + r.status + ')', 'err')
-    return false
-  }, function () { msg('The session is not running.', 'err'); return false })
+    var err = r.body.error || 'Copy failed (' + r.status + ')'
+    // A field's own error goes under that field.
+    if (r.status === 400 && err.indexOf('screen') === 0) fieldError('screen', err)
+    else if (r.status === 400 && (err.indexOf('state') === 0 || err.indexOf('label') === 0)) fieldError('name', err)
+    else say(err, 'err')
+    return null
+  }, function () { say('Not copied: the session is stopped. In Claude Code, type /html-design start.', 'err'); return null })
 }
-function busy(on) { ['copy', 'copyLater', 'copy3'].forEach(function (id) { $(id).disabled = on }) }
-$('copy').onclick = function () { msg('Copying…'); busy(true); send({}).then(function () { busy(false) }) }
-// The server does the wait, so the copy runs while the user is in the app tab. Replace? is asked here first:
-// a dialog in a hidden tab waits until the tab is shown again.
-var slug = ${slugScreen.toString()}
-$('copyLater').onclick = function () {
+function start() { working = true; sync(); say('') }
+function finish() { working = false; BUTTONS.forEach(function (id) { label(id) }); sync() }
+// The end of one copy run: on a save the name is cleared for the next copy.
+function after(saved) { finish(); if (saved) clearName() }
+$('copy').onclick = function () {
   var n = names()
-  busy(true)
-  fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(n.state)).then(function (r) { return r.status === 200 }, function () { return false }).then(function (has) {
-    if (has && !confirm('State ' + n.state + ' already exists. Replace?')) { msg('Not copied.'); busy(false); return }
-    var extra = { delay: 5, tab: tabPicked ? chosenTab() : undefined }
-    if (has) extra.replace = true
-    msg('Copy in 5 s: switch to the app tab and open the menu.')
-    return send(extra).then(function () { busy(false) })
+  if (!check(n)) return
+  start()
+  label('copy', 'Copying…')
+  sendPreset()
+  send(n, {}).then(after)
+}
+var exists = function (n) { return fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(n.state)).then(function (r) { return r.status === 200 }, function () { return false }) }
+// A taken name before a run: the same question, asked here before the run starts.
+function before(n) {
+  return exists(n).then(function (has) {
+    if (!has) return { n: n, extra: {} }
+    return askExisting(n).then(function (a) { return a.kind === 'cancel' ? null : { n: a.n, extra: a.kind === 'replace' ? { replace: true } : {} } })
   })
 }
+// The server does the wait, so the copy runs while the user is in the app tab. Cancel stops the server's wait.
+$('copyLater').onclick = function () {
+  var n0 = names()
+  if (!check(n0)) return
+  start()
+  before(n0).then(function (go) {
+    if (!go) return finish()
+    var extra = go.extra
+    extra.delay = 5
+    extra.tab = tabPicked ? chosenTab() : undefined
+    var left = 5
+    var show = function () {
+      $('later').hidden = false
+      $('laterText').textContent = left > 0 ? 'Copying in ' + left + '... switch to your app' : 'Copying…'
+      label('copyLater', left > 0 ? 'Copying in ' + left : 'Copying…')
+    }
+    show()
+    var timer = setInterval(function () { left = Math.max(0, left - 1); show() }, 1000)
+    return send(go.n, extra).then(function (saved) { clearInterval(timer); $('later').hidden = true; after(saved) })
+  })
+}
+$('cancel').onclick = function () { $('cancel').disabled = true; postJson('/__cancel', {}).catch(function () {}).then(function () { $('cancel').disabled = false }) }
 // Every width in turn: resize, let it settle, copy. The base width first; the window ends there. Each resize
 // brings the app tab to the front (Chrome lays out only that tab), so the user ends in the app tab: the
-// result shows there too, and Replace? is asked here before the run.
+// result shows there too.
 $('copy3').onclick = function () {
-  var n = names()
+  var n0 = names()
+  if (!check(n0)) return
   var tab = chosenTab()
-  busy(true)
-  fetch('/__state/' + encodeURIComponent(slug(n.screen)) + '/' + encodeURIComponent(n.state)).then(function (r) { return r.status === 200 }, function () { return false }).then(function (has) {
-    if (has && !confirm('State ' + n.state + ' already exists. Replace?')) { msg('Not copied.'); busy(false); return }
-    var extra = has ? { replace: true } : {}
-    var done = function (text) { return postJson('/__toast', { text: text, tab: tab }).catch(function () {}).then(function () { busy(false); showTabs() }) }
+  start()
+  before(n0).then(function (go) {
+    if (!go) return finish()
+    var n = go.n
+    var name = '"' + (n.label || n.state) + '"'
+    var done = function (text, saved) { return postJson('/__toast', { text: text, tab: tab }).catch(function () {}).then(function () { after(saved); showTabs() }) }
     var i = 0
     var step = function () {
       if (i === WIDTHS.length) {
-        var saved = 'Saved ' + n.state + ' at ' + WIDTHS.join(', ')
-        return postJson('/__resize', { width: WIDTHS[0], front: true, tab: tab }).then(function () { msg(saved, 'ok'); return done(saved) })
+        var text = 'Saved ' + name + ' at ' + WIDTHS.join(', ')
+        return postJson('/__resize', { width: WIDTHS[0], front: true, tab: tab }).then(function () { msg(esc(text) + '. ' + openLink(viewerHref(n.screen, n.state)), 'ok'); return done(text, true) })
       }
       var w = WIDTHS[i]
-      msg('Copying at ' + w + ' px…')
+      label('copy3', 'Width ' + (i + 1) + ' of ' + WIDTHS.length)
+      say('Copying at ' + w + ' px…')
       return postJson('/__resize', { width: w, front: true, tab: tab })
         .then(function () { return new Promise(function (r) { setTimeout(r, 700) }) })
-        .then(function () { return send(extra) })
-        .then(function (ok) { if (!ok) return done('Not saved at ' + w + ': ' + $('msg').textContent); i += 1; return step() })
+        .then(function () { return send(n, go.extra) })
+        .then(function (ok) { if (!ok) return done('Not saved at ' + w + ': ' + $('msg').textContent, false); i += 1; return step() })
     }
     return step()
   })
@@ -376,7 +759,7 @@ function listScreens(dir, notes = []) {
 const screenCache = new Map()
 function summarize(text) {
   const states = parseScreen(text).states
-  return { states: states.length, first: states[0]?.id ?? null, labels: states.map((s) => s.attrs['data-label']).filter(Boolean) }
+  return { states: states.length, first: states[0]?.id ?? null, labels: states.map((s) => s.attrs['data-label']).filter(Boolean), list: states.map((s) => ({ id: s.id, label: s.attrs['data-label'] ?? '' })) }
 }
 
 // One state of a screen file, cut out as text (a full parse of a large file is slow): the opening tag's
@@ -454,8 +837,16 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     return json(res, 201, { id })
   }
 
-  // The last copies of this session, newest first, for the Copy window's Recent list.
+  // The last copies of this session, newest first, for the Copy tab's Recent list.
   const recent = []
+  // The Copy in 5 s waits running now.
+  const waits = new Set()
+  async function postCancel(req, res) {
+    if (!(await readJson(req, res))) return
+    const n = waits.size
+    for (const w of waits) w.cancelled = true
+    return json(res, 200, { cancelled: n })
+  }
   // One copy at a time: two copies into one screen file would race.
   let copyChain = Promise.resolve()
   // A stable id per app page: the order of open tabs changes when one closes, so an index sent after
@@ -500,7 +891,7 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     const bad = validCopy(b)
     if (bad) return json(res, 400, { error: bad })
     const pages = browser ? browser.appPages() : []
-    const noPage = () => json(res, 503, { error: 'No app page is open. Start the session and open the app.' })
+    const noPage = () => json(res, 503, { error: browser ? NO_APP_TAB : NO_SESSION })
     if (!pages.length) return noPage()
     let { target, error } = await namedTab(pages, b.tab)
     if (error) return json(res, 400, { error })
@@ -509,11 +900,19 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
       // Copy in N s: meanwhile the user is in the app tab, opening a menu. A badge counts down there and is
       // gone before the copy settles. The tab is picked when the wait ends: the one the user used last.
       const badge = (ps, text) => Promise.all(ps.map((p) => browser.badge?.(p, text)))
-      for (let n = b.delay; n > 0; n--) {
-        await badge(target ? [target] : browser.appPages(), `Copy in ${n}`)
-        await sleep(1000)
+      // POST /__cancel ends the wait: checked every 100 ms, so Cancel answers at once.
+      const wait = { cancelled: false }
+      waits.add(wait)
+      try {
+        for (let n = b.delay; n > 0 && !wait.cancelled; n--) {
+          await badge(target ? [target] : browser.appPages(), `Copy in ${n}`)
+          for (let t = 0; t < 10 && !wait.cancelled; t++) await sleep(100)
+        }
+      } finally {
+        waits.delete(wait)
       }
       await badge(browser.appPages(), null)
+      if (wait.cancelled) return json(res, 409, { cancelled: true, error: 'Copy cancelled.' })
       if (target && !browser.appPages().includes(target)) return json(res, 400, { error: `Tab ${b.tab} closed during the wait.` })
     }
     if (!target) {
@@ -538,7 +937,7 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
       return json(res, 500, { error: `Copy failed: ${e.message}` })
     }
     if (out.status === 409) return json(res, 409, { exists: true, error: `State ${b.state} already exists at this width. Send replace: true to replace it.` })
-    recent.unshift({ screen: slugScreen(b.screen), state: b.state, width: out.width ?? null, at: Date.now() })
+    recent.unshift({ screen: slugScreen(b.screen), state: b.state, label: b.label ?? null, width: out.width ?? null, at: Date.now() })
     recent.length = Math.min(recent.length, 20)
     return json(res, 201, { saved: out.saved, images: out.images, warnings: out.warnings })
   }
@@ -581,11 +980,48 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     return json(res, 200, { ok: true })
   }
 
-  // The Copy window reports its names (screen, state, label) so the keyboard chord can reuse them.
+  // Switches to the open Copy tab or viewer tab (path: /__copy, / or /screens/<name>.html#<state>@<width>).
+  async function postFocus(req, res) {
+    const got = await readJson(req, res)
+    if (!got) return
+    const p = got.body?.path
+    if (typeof p !== 'string' || !FOCUS_PATH.test(p)) return json(res, 400, { error: 'path must be /, /__copy or /screens/<screen>.html#<state>' })
+    if (!browser?.focus) return json(res, 503, { error: 'No session browser is open.' })
+    if (!(await browser.focus(p))) return json(res, 503, { error: 'No session browser is open.' })
+    return json(res, 200, { ok: true })
+  }
+
+  // The notes list in the viewer: change the words of an open note, or delete it. Same file, same fields.
+  async function changeNote(req, res, kind) {
+    const got = await readJson(req, res)
+    if (!got) return
+    const b = got.body ?? {}
+    if (typeof b.id !== 'string' || !/^n-\d{1,20}-\d{1,9}$/.test(b.id)) return json(res, 400, { error: 'id must be a note id' })
+    if (kind === 'edit' && (typeof b.note !== 'string' || !b.note.trim() || b.note.length > 2000)) return json(res, 400, { error: 'note must be 1 to 2000 characters' })
+    let notes
+    try {
+      notes = readNotes(root, cfg)
+    } catch (e) {
+      return json(res, 500, { error: e.message })
+    }
+    const i = notes.findIndex((n) => n.id === b.id)
+    if (i === -1) return json(res, 404, { error: `No note ${b.id}.` })
+    if (kind === 'edit') notes[i].note = b.note.trim()
+    else notes.splice(i, 1)
+    writeNotes(root, cfg, notes)
+    return json(res, 200, { ok: true })
+  }
+
+  // The Copy tab reports its names (screen, state, label) so the keyboard chord can reuse them.
   async function postPreset(req, res) {
     const got = await readJson(req, res)
     if (!got) return
     const b = got.body
+    // { clear: true }: the Copy tab's name was cleared, so the chord has nothing to save.
+    if (b && b.clear === true) {
+      if (onPreset) onPreset(null)
+      return json(res, 200, { ok: true })
+    }
     const bad = validCopy(b)
     if (bad) return json(res, 400, { error: bad })
     if (onPreset) onPreset({ screen: b.screen, state: b.state, label: b.label })
@@ -609,12 +1045,16 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
       if (path === '/__preset') return void postPreset(req, res).catch(fail(res))
       if (path === '/__resize') return void postResize(req, res).catch(fail(res))
       if (path === '/__toast') return void postToast(req, res).catch(fail(res))
+      if (path === '/__focus') return void postFocus(req, res).catch(fail(res))
+      if (path === '/__cancel') return void postCancel(req, res).catch(fail(res))
+      if (path === '/__notes/edit') return void changeNote(req, res, 'edit').catch(fail(res))
+      if (path === '/__notes/delete') return void changeNote(req, res, 'delete').catch(fail(res))
       return res.writeHead(404).end('Not found')
     }
     if (path === '/') {
       let notes = []
       try { notes = readNotes(root, cfg) } catch {}
-      return html(homePage(listScreens(screensDir, notes), { project: basename(root), style: cfg.style }))
+      return html(homePage(listScreens(screensDir, notes), { project: basename(root), style: cfg.style, appUrl: cfg.url }))
     }
     if (path.startsWith('/__state/')) {
       // One state as a whole page (home previews, Recent): a few KB instead of the whole screen file.
@@ -632,16 +1072,28 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
         .then((list) => json(res, 200, list), fail(res))
     }
     if (path === '/__recent') return json(res, 200, recent)
+    if (path === '/__status') {
+      // Polled by home and the Copy tab: a failed fetch means the session stopped.
+      // notes: open ones; notesEver: every note in the file, done ones too (home ticks step 2 with it).
+      let notes = 0
+      let notesEver = 0
+      try { const all = readNotes(root, cfg); notes = all.filter((x) => !x.done).length; notesEver = all.length } catch {}
+      const screens = existsSync(screensDir) ? readdirSync(screensDir).filter((f) => f.endsWith('.html')).length : 0
+      return json(res, 200, { browser: !!browser, tabs: browser ? browser.appPages().length : 0, screens, notes, notesEver })
+    }
     if (path === '/__blank') return html('<!doctype html><title>blank</title>')
     if (path === '/__copy') return html(copyWindow({ screens: existsSync(screensDir) ? readdirSync(screensDir).filter((f) => f.endsWith('.html')).sort().map((f) => f.replace(/\.html$/, '')) : [], widths: cfg.widths }))
     if (path === '/__notes') {
       try {
         const open = readNotes(root, cfg).filter((x) => !x.done)
         // ?screen=<name>: also the open notes per state, for the state list's dots.
-        const screen = new URL(req.url, 'http://x').searchParams.get('screen')
+        const params = new URL(req.url, 'http://x').searchParams
+        const screen = params.get('screen')
         const byState = {}
         if (screen) for (const x of open) if (x.screen === screen) { const id = x.state.split('@')[0]; byState[id] = (byState[id] ?? 0) + 1 }
-        return json(res, 200, screen ? { open: open.length, byState } : { open: open.length })
+        // &list=1: the notes themselves, for the viewer's notes list.
+        const list = screen && params.get('list') ? open.filter((x) => x.screen === screen).map(({ id, state, width, theme, path, text, tag, note }) => ({ id, state, width, theme, path, text, tag, note })) : null
+        return json(res, 200, screen ? { open: open.length, byState, ...(list ? { list } : {}) } : { open: open.length })
       } catch (e) {
         return json(res, 200, { open: 0, error: e.message })
       }
@@ -673,6 +1125,8 @@ export async function createViewServer({ root, cfg, dataDir = null, port = 0, br
     const flush = async () => {
       const b = needBuild
       needBuild = false
+      // Sent before the build, which takes seconds: home shows a new screen at once, the viewer says Updating.
+      send('event: change\ndata: {}\n\n')
       if (b && build && !(await runBuild())) return
       send('data: reload\n\n')
     }

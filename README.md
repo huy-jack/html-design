@@ -85,23 +85,27 @@ Commit `design-mode.json` and the design folder if you want to share designs. Th
 This opens one browser window with your app, plus 2 local pages:
 
 - **Viewer**: `http://127.0.0.1:<port>/`, the list of screen files.
-- **Copy window**: `http://127.0.0.1:<port>/__copy`, the Copy controls.
+- **Copy tab**: `http://127.0.0.1:<port>/__copy`, the Copy controls.
+
+The command ends with the next step: open your app in a new tab of that browser window, then use the Copy tab. On the first run the viewer shows the same 3 steps and ticks each one when it is done.
 
 The first time, log in to your app in that browser window. The login is saved in a profile inside the plugin's data folder (one per project), never in your project.
 
 ### 2. Copy states
 
-1. In the app window, go to a page and click until it shows the state you want (an open menu, an error, an empty list).
-2. In the Copy window, type the screen name (for example `Checkout`) and the state name (for example `empty`).
-3. Press **Copy**. Or press **Ctrl+Shift+S** inside the app window: focus stays in the app, so open menus and hover states survive.
+1. In the app tab, go to a page and click until it shows the state you want (an open menu, an error, an empty list).
+2. In the Copy tab, pick the screen in **Screen** (type to search; for a new one, type its name, for example `Checkout`, and pick **Create new screen**). Type a name in **Name this view** (for example `Empty cart`). The state id is made from the name (`empty-cart`); **Change id** lets you type your own. After a saved copy the name field is cleared for the next one.
+3. Press **Copy state**. Or press **Ctrl+Shift+S** inside the app tab: focus stays in the app, so open menus and hover states survive.
+
+The Copy tab says when no app tab is open and turns the copy buttons off until one is. A field error shows under its field. After a copy, **Open in viewer** switches to the viewer tab at that state.
 
 Rules:
 
 - A copy never resizes the app window, so open menus stay open. The first copy of a state is the base, stored at the set width nearest to the window (a note says so when the window is another width). Use the width buttons to set the window first.
-- The same state at the same width asks "Replace?".
+- The same state at the same width asks in the Copy tab: **Replace**, **Save as "<name> 2"**, or **Cancel**. Ctrl+Shift+S does not ask: it saves "<name> 2" (then 3, and so on) and the note in the app tab says so.
 - The same state at another width (use the width buttons) is stored as a width copy, but only if the page differs.
-- With 2 or more app tabs open, the Copy window asks which tab.
-- To copy an open menu: press **Ctrl+Shift+S** in the app tab, or click **Copy in 5 s**, go to the app tab and open the menu. The copy is of the app tab you last clicked, typed or moved the pointer in during the wait. A small "Copy in 3" badge counts down in the app tab; it is never in the copy. After Ctrl+Shift+S, a short note in the app tab says whether the copy was saved.
+- With 2 or more app tabs open, the Copy tab asks which tab.
+- To copy an open menu: press **Ctrl+Shift+S** in the app tab, or click **Copy in 5 s**, go to the app tab and open the menu. The copy is of the app tab you last clicked, typed or moved the pointer in during the wait. A small "Copy in 3" badge counts down in the app tab; it is never in the copy. The Copy tab counts down too and has **Cancel**. After Ctrl+Shift+S, a short note in the app tab says whether the copy was saved. On a Mac the shortcut is Control+Shift+S, not Cmd.
 
 You can also ask Claude: "copy this as checkout empty".
 
@@ -136,7 +140,7 @@ After each edit Claude runs `/html-design check`. Undo is your own git.
 | Command | Does |
 |---|---|
 | `/html-design setup` | Install and detect (see above) |
-| `/html-design start` | Start the viewer, the app browser and the Copy window |
+| `/html-design start` | Start the viewer, the app browser and the Copy tab |
 | `/html-design stop` | Stop all of them |
 | `/html-design status` | Running or not, port, screen count, open notes, style |
 | `/html-design tokens` | List the style, the class prefix and the tokens Claude may use |
@@ -144,14 +148,16 @@ After each edit Claude runs `/html-design check`. Undo is your own git.
 
 ## The viewer
 
-- **Home** (`http://127.0.0.1:<port>/`): every screen as a card with a live preview of its first state, its state count, open notes and last change. Search with `/`, sort by recent, name or state count.
-- **A screen**: the states in a side list by group (filter at the top, a dot for open notes, a link count). The design shows at its true width (1440 / 1024 / 375) and is scaled down to fit the window, never up, so the app's breakpoints see the real width. Above it: the size, the zoom, and the page it was copied from.
-- **Keys**: ↑ ↓ (or ← →) state, 1 2 3 width, D dark, P Pick.
-- **Pick**: click an element and type a note.
+- **Home** (`http://127.0.0.1:<port>/`): every screen as a card with a live preview of its first state, its state count, open notes and last change. A new copy shows up by itself, marked **New**. Search with `/`: matching states are listed under each card, and Enter opens the first one. Sort by recent, name or state count. The pill says whether the session runs.
+- **A screen**: the states in a side list by group (filter at the top with a match count, open notes as a dot and a number, a link count). **Hide list** (L) gives the design the whole width; below 900 px the states are a drop-down. The design shows at its true width (1440 / 1024 / 375), scaled down to fit (**Fit**) or at **100%**, so the app's breakpoints see the real width. Above it: the size, the zoom, and the page it was copied from.
+- **Keys**: ↑ ↓ (or ← →) state, 1 2 3 width, D design light/dark, L list, P Pick, Esc stop.
+- **Pick**: a bar says Pick is on; click an element and type a note. A note box with text never closes without asking, and stays open until the note is saved. After a save, the viewer says the next step: say "do my notes" in Claude Code. The notes button lists this screen's open notes, with Edit and Delete.
 - Linked buttons have a pointer. Click one to move to its state with its motion. Motion plays in Chrome 111+, Safari 18+ and Firefox 144+.
-- A red bar shows a CSS build error. The last good CSS stays in use.
+- A card above the design shows a CSS build error (the raw output behind **Show details**). The last good CSS stays in use. A stopped session shows a grey bar with the start command.
 - A link to one state: `screens/<screen>.html#<state>@<width>`.
-- **Copy window**: shows the app tab it will copy (pick one when several are open) and its width. **Copy state**, **Copy in 5 s**, or **Copy at 3 widths** (resizes the browser window and copies each width, so open menus close; it brings the app tab to the front, and a short note there says what was saved). **Recent** lists this session's copies with a preview.
+- **Copy tab**: shows the app tab it will copy (pick one when several are open) and its width. **Copy state**, **Copy in 5 s**, or **Copy at 3 widths** (resizes the browser window and copies each width, so open menus close; it brings the app tab to the front, and a short note there says what was saved). **Recent** lists this session's copies with a preview; a click switches to the viewer tab.
+- The plugin's pages are light, or dark when your computer is set to dark. **Tool colors** (the sun or moon button on home and the Copy tab, the side panel footer in the viewer) switches the tool's own colors; **Design: Light | Dark** next to the widths switches the design.
+- In Pick mode the pink bar names what a click would note. The picked element keeps a solid outline and a numbered pin while you write; the note box names the element and its nearest heading. Pointing at a row in the notes list marks its element the same way.
 - The viewer loads the Geist font from Google Fonts. Offline, it uses the system font.
 
 ## Config: `design-mode.json`
@@ -208,7 +214,7 @@ design/
 
 ## Limits
 
-- Not copied: content inside shadow DOM, iframes, `<canvas>` drawings, video frames (a `<video>` with a poster image becomes that image). The Copy window warns about each one.
+- Not copied: content inside shadow DOM, iframes, `<canvas>` drawings, video frames (a `<video>` with a poster image becomes that image). The Copy tab warns about each one.
 - `page.css` only grows. CSS from a library you removed stays in it. Check warns when it is over 10 MB.
 - An image set by `url()` inside your own Tailwind file is not downloaded, so it is blank offline.
 - Screen files over 25 MB get a warning.
@@ -225,7 +231,7 @@ design/
 | `start` says "Run /html-design setup again" | Setup is missing, or the plugin updated its browser version. Run setup |
 | `start` says it did not start within 45 s | Read `design/.local/session.log` |
 | The copy has the wrong fonts | Run the copy again with the page fully loaded. Fonts come from the page at copy time |
-| "No app page is open" (503) | Open your app in the session browser window, not in your normal browser |
+| "Your app is not open yet" (503) | Open your app in a new tab of the session browser window, not in your normal browser |
 | A login page refuses the browser | Set `"browser": "chrome"` in `design-mode.json`, then `/html-design stop` and `start` |
 | Red bar in the viewer | Your CSS file has an error, or a package it imports is missing. The bar shows the message |
 
@@ -236,13 +242,19 @@ git clone https://github.com/huy-jack/html-design
 cd html-design
 npm install
 npx playwright install chromium
-npm test                                # 250 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
+npm test                                # 315 tests; the first run installs a Tailwind 3 test app (about 25 MB, needs the network)
 claude --plugin-dir ./plugin            # use the local copy in Claude Code
 claude plugin validate ./plugin
 ```
 
 - `plugin/` is the only folder users install. It has no `package.json`: runtime packages load from the project or from the plugin data folder.
 - Tests live in `test/`. A fixture app with a login, images and fonts behind the login is in `test/fixture/`.
+
+### Reviewing the plugin's own UI
+
+1. Take screenshots of a project with screens: `node .claude/ux/shoot.mjs <project> ux-shots`.
+2. Take screenshots of the first run: `node .claude/ux/shoot.mjs --empty ux-shots`.
+3. Ask Claude to use the ui-ux-reviewer agent on `ux-shots` (git-ignored: the shots show your app).
 
 
 ## License

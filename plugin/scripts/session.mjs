@@ -28,7 +28,8 @@ export function psCommand(pid) {
 export async function viewerAnswers(port, fetchFn = fetch) {
   try {
     const res = await fetchFn(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(2000) })
-    return res.ok && (await res.text()).includes('<title>Designs</title>')
+    // Designs: the title before 0.4.0, so a session started by an older version still counts.
+    return res.ok && /<title>(Screens|Designs)<\/title>/.test(await res.text())
   } catch { return false }
 }
 // A reused pid must not be mistaken for the session: its command line has to name session.mjs. Without
@@ -45,11 +46,12 @@ async function readSession(root, cfg) {
   try { s = JSON.parse(readFileSync(sessionFile(root, cfg), 'utf8')) } catch { return null }
   return Number.isInteger(s.pid) && alive(s.pid) && (await isOurSession(s)) ? s : null
 }
-const urls = (port) => `Viewer http://127.0.0.1:${port}/  Copy window http://127.0.0.1:${port}/__copy`
+const urls = (port) => `Viewer http://127.0.0.1:${port}/  Copy tab http://127.0.0.1:${port}/__copy`
+const NEXT = 'Next: open your app in a new tab of that browser window, then use the Copy tab.'
 
 async function start(root, cfg, data, headless) {
   const running = await readSession(root, cfg)
-  if (running) { console.log(urls(running.port)); return 0 }
+  if (running) { console.log(urls(running.port)); console.log(NEXT); return 0 }
   mkdirSync(localDir(root, cfg), { recursive: true })
   rmSync(sessionFile(root, cfg), { force: true })
   const log = join(localDir(root, cfg), 'session.log')
@@ -62,7 +64,7 @@ async function start(root, cfg, data, headless) {
   const until = Date.now() + WAIT_MS
   while (Date.now() < until) {
     const s = await readSession(root, cfg)
-    if (s) { console.log(urls(s.port)); return 0 }
+    if (s) { console.log(urls(s.port)); console.log(NEXT); return 0 }
     if (exited !== null) break
     await sleep(100)
   }
@@ -114,24 +116,33 @@ export async function startSession({ root, cfg, data, headless = false, openPage
     targetIdOf: (...a) => browser.targetIdOf(...a),
     badge: (...a) => browser.badge(...a),
     toast: (...a) => browser.toast(...a),
+    focus: (...a) => (browser ? browser.focus(...a) : false),
   }
-  // Names from the Copy window; the chord reuses them.
+  // Names from the Copy tab; the chord reuses them.
   let preset = null
   const view = await createViewServer({ root, cfg, dataDir: data, browser: handle, onPreset: (p) => { preset = p } })
   const origin = `http://127.0.0.1:${view.port}`
   const profileDir = join(dataPaths(data).profiles, createHash('sha256').update(root).digest('hex').slice(0, 12))
   mkdirSync(profileDir, { recursive: true })
   // The user is in the app tab, so the result shows there too: a toast, added only after the copy is done.
+  // A taken name is saved under the next free number ("Menu open 2"), and the toast says so.
   const onChord = async (page) => {
     const p = preset
     if (!p) {
-      console.warn('Chord ignored: fill in a screen and state in the Copy window first.')
-      return browser.toast(page, 'Fill in a screen and state in the Copy tab first')
+      console.warn('Chord ignored: fill in a screen and a name in the Copy tab first.')
+      return browser.toast(page, 'Name this view in the Copy tab first.')
     }
+    const name = p.label || p.state
     try {
-      const out = await browser.copyFrom(page, { screen: p.screen, state: p.state, label: p.label })
-      console.log(out.status === 201 ? `Chord copy saved ${out.saved}` : `Chord copy skipped: state ${p.state} already exists`)
-      await browser.toast(page, out.status === 201 ? `Saved ${p.state}` : `${p.state} already exists: change the state id in the Copy tab`)
+      let saved = p
+      let out = await browser.copyFrom(page, { screen: p.screen, state: p.state, label: p.label })
+      for (let k = 2; out.status === 409 && k < 100; k++) {
+        saved = { screen: p.screen, state: `${p.state}-${k}`.slice(0, 120), label: `${name} ${k}` }
+        out = await browser.copyFrom(page, saved)
+      }
+      if (out.status !== 201) throw new Error(`state ${p.state} and its numbered names are taken`)
+      console.log(`Chord copy saved ${out.saved} as ${saved.state}`)
+      await browser.toast(page, saved === p ? `Saved "${name}". See it in the viewer tab.` : `"${name}" already exists. It was saved as "${saved.label}".`)
     } catch (e) {
       console.error(`Chord copy failed: ${e.message}`)
       await browser.toast(page, `Copy failed: ${e.message}`)

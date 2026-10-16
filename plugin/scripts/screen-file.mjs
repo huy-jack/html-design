@@ -25,6 +25,8 @@ function parseLinks(document) {
 }
 
 export const slugScreen = (name) => String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+// A state id from the name the user typed ("Menu open" -> menu-open). Also runs in the Copy tab (toString).
+export const slugState = (name) => String(name).toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9_.-]/g, '').replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '').slice(0, 120)
 const escAttr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 const escText = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
 

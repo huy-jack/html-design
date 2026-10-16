@@ -6,6 +6,38 @@ export function cleanDocument(doc, { dark }) {
   const remote = []
   const warnings = []
   const body = doc.body
+  // 0. Fixed layers (menus, popovers): the frame in the viewer can differ from the window in height, and in
+  // width (a 1470 window is stored at 1440). Store each one at its measured place: top-based, and anchored to the
+  // nearer side, so a menu near the right edge keeps its distance to that edge. offsetTop/Left ignore transforms.
+  // A layer placed by a translate transform already uses the corner and is kept as it is. Normal flow is untouched.
+  const view = doc.defaultView
+  if (view && view.getComputedStyle) {
+    const vw = view.innerWidth
+    for (const el of body.querySelectorAll('*')) {
+      const cs = view.getComputedStyle(el)
+      if (cs.position !== 'fixed' || cs.display === 'none' || !(el.offsetWidth || el.offsetHeight)) continue
+      const m = /^matrix(?:3d)?\((.*)\)$/.exec(cs.transform)
+      const nums = m ? m[1].split(',').map(Number) : []
+      const tx = nums.length === 16 ? nums[12] : nums[4]
+      const ty = nums.length === 16 ? nums[13] : nums[5]
+      if (tx || ty) continue
+      const set = (k, v) => el.style.setProperty(k, v, el.style.getPropertyPriority(k))
+      const px = (v) => parseFloat(v) || 0
+      // Stretched between top and bottom: the height came from the window, so keep it.
+      if (cs.top !== 'auto' && cs.bottom !== 'auto') { set('box-sizing', 'border-box'); set('height', `${el.offsetHeight}px`) }
+      set('top', `${el.offsetTop - px(cs.marginTop)}px`)
+      set('bottom', 'auto')
+      const right = el.offsetLeft + el.offsetWidth / 2 > vw / 2
+      if (cs.left !== 'auto' && cs.right !== 'auto' || right) { set('box-sizing', 'border-box'); set('width', `${el.offsetWidth}px`) }
+      if (right) {
+        set('right', `${vw - el.offsetLeft - el.offsetWidth - px(cs.marginRight)}px`)
+        set('left', 'auto')
+      } else {
+        set('left', `${el.offsetLeft - px(cs.marginLeft)}px`)
+        set('right', 'auto')
+      }
+    }
+  }
   // 1. What the user typed lives in DOM properties, not attributes: copy it over.
   for (const el of body.querySelectorAll('input')) {
     if (el.type === 'checkbox' || el.type === 'radio') {
